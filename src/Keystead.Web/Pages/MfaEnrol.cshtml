@@ -1,0 +1,93 @@
+@page "/mfa/enrol"
+@model Keystead.Web.Pages.MfaEnrolModel
+@{
+    ViewData["Title"] = "Set up two-factor authentication";
+    Layout = "_LayoutPublic";
+}
+
+@if (Model.RecoveryCodes is not null)
+{
+    <div class="form-header">
+        <h2>Save your recovery codes</h2>
+        <p>
+            These are shown once. Store them somewhere you can reach without your phone, such
+            as a password manager or a printout somewhere safe.
+        </p>
+    </div>
+
+    <div class="one-time">
+        <ul class="one-time__codes">
+            @foreach (var code in Model.RecoveryCodes)
+            {
+                <li>@code</li>
+            }
+        </ul>
+    </div>
+
+    <div class="alert alert--warning">
+        <div>
+            Each code works once and stands in for your authenticator for a single sign-in. If
+            you use one, set up a new authenticator straight away.
+        </div>
+    </div>
+
+    <a class="btn btn--primary" href="/" style="width: 100%;">Go to the dashboard</a>
+}
+else
+{
+    <div class="form-header">
+        <h2>Set up two-factor authentication</h2>
+        <p>Scan this with your authenticator app, then enter the code it shows.</p>
+    </div>
+
+    @if (Model.Error is not null)
+    {
+        <div class="alert alert--danger" role="alert"><div>@Model.Error</div></div>
+    }
+
+    @if (Model.QrSize > 0)
+    {
+        @*
+            Drawn as ordinary SVG elements from the module grid, so no raw markup is injected
+            and nothing bypasses Razor encoding. The grid is computed on this server from a
+            URI built here, never from user input.
+        *@
+        <svg class="qr"
+             width="200"
+             height="200"
+             viewBox="0 0 @Model.QrSize @Model.QrSize"
+             shape-rendering="crispEdges"
+             role="img"
+             aria-label="QR code for setting up two-factor authentication"
+             xmlns="http://www.w3.org/2000/svg">
+            <rect width="@Model.QrSize" height="@Model.QrSize" fill="#ffffff" />
+            @foreach (var module in Model.QrModules)
+            {
+                <rect x="@module.X" y="@module.Y" width="1" height="1" fill="#16161d" />
+            }
+        </svg>
+
+        <div class="field">
+            <p class="field__label">Or enter this key manually</p>
+            <div class="secret-value"><code>@Model.SharedSecret</code></div>
+        </div>
+    }
+
+    <form method="post">
+        <div class="field">
+            <label class="field__label" for="code">Six-digit code</label>
+            <input class="input input--mono"
+                   id="code"
+                   type="text"
+                   inputmode="numeric"
+                   autocomplete="one-time-code"
+                   maxlength="8"
+                   required
+                   asp-for="Input.Code" />
+        </div>
+
+        <button class="btn btn--primary" type="submit" style="width: 100%;">
+            Confirm and finish
+        </button>
+    </form>
+}

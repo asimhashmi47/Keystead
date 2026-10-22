@@ -1,0 +1,16 @@
+@page "/forbidden"
+@model Keystead.Web.Pages.ForbiddenModel
+@{
+    ViewData["Title"] = "Not permitted";
+    Layout = "_LayoutPublic";
+}
+
+<div class="form-header">
+    <h2>Not permitted</h2>
+    <p>
+        Your account does not have access to that. If you think it should, ask an administrator
+        of your workspace to grant it.
+    </p>
+</div>
+
+<a class="btn btn--secondary" href="/" style="width: 100%;">Back to the dashboard</a>

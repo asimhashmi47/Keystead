@@ -850,3 +850,155 @@ code, kbd, pre, samp {
 @media (min-width: 861px) {
     .topbar__menu-toggle { display: none; }
 }
+
+/* ===========================================================================
+   Public split layout: sign-in, setup, forbidden
+   =========================================================================== */
+.split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 100vh;
+}
+
+.split__brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-12);
+
+    /* The one gradient in the product, and it is not purple-to-blue: indigo through violet
+       into a deep ink, which reads as depth rather than as a template. */
+    background:
+        radial-gradient(120% 90% at 15% 10%, var(--indigo-600) 0%, transparent 55%),
+        radial-gradient(100% 80% at 85% 80%, var(--violet-600) 0%, transparent 50%),
+        var(--ink-900);
+    color: var(--white);
+}
+
+.split__brand-inner { max-width: 42ch; }
+
+.split__mark {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    margin-bottom: var(--space-6);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: var(--white);
+}
+
+.split__title {
+    font-size: var(--text-3xl);
+    letter-spacing: -0.03em;
+    margin-bottom: var(--space-4);
+    color: var(--white);
+}
+
+.split__tagline {
+    font-size: var(--text-md);
+    line-height: var(--leading-normal);
+
+    /* Not grey-on-colour: a tinted white keeps the contrast ratio and the hue relationship. */
+    color: rgba(255, 255, 255, 0.82);
+    margin-bottom: var(--space-8);
+}
+
+.split__points {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.split__points li {
+    position: relative;
+    padding-left: var(--space-6);
+    color: rgba(255, 255, 255, 0.76);
+    font-size: var(--text-base);
+}
+
+.split__points li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.55em;
+    width: 7px;
+    height: 7px;
+    border-radius: var(--radius-full);
+    background: var(--teal-500);
+}
+
+.split__form {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-12) var(--space-8);
+    background: var(--color-bg);
+}
+
+.split__form-inner {
+    width: 100%;
+    max-width: 24rem;
+}
+
+.form-header { margin-bottom: var(--space-8); }
+
+.form-header h2 {
+    font-size: var(--text-2xl);
+    letter-spacing: -0.02em;
+    margin-bottom: var(--space-2);
+}
+
+.form-header p { color: var(--color-text-secondary); }
+
+.form-footer {
+    margin-top: var(--space-6);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+}
+
+/* The one-time display of key material or recovery codes. */
+.one-time {
+    padding: var(--space-5);
+    background: var(--color-surface-sunken);
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-5);
+}
+
+.one-time__codes {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-base);
+}
+
+.qr {
+    display: block;
+    margin: 0 auto var(--space-5);
+    background: var(--white);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+@media (max-width: 900px) {
+    .split { grid-template-columns: 1fr; }
+
+    .split__brand {
+        padding: var(--space-8) var(--space-6);
+        min-height: auto;
+    }
+
+    .split__points { display: none; }
+
+    .split__form { padding: var(--space-8) var(--space-5); }
+}

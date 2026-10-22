@@ -188,6 +188,9 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("LastUsedTotpWindow")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTimeOffset?>("LockoutEndUtc")
                         .HasColumnType("TEXT");
 
@@ -207,6 +210,9 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("BLOB")
                         .IsFixedLength();
+
+                    b.Property<int>("MfaSeedMasterKeyVersion")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTimeOffset>("PasswordChangedUtc")
                         .HasColumnType("TEXT");

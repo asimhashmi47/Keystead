@@ -32,6 +32,11 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(SealedBlob.TagLength)
             .IsFixedLength();
 
+        builder.Property(u => u.MfaSeedMasterKeyVersion).IsRequired();
+
+        // The TOTP replay guard: the highest time step this user has consumed.
+        builder.Property(u => u.LastUsedTotpWindow);
+
         builder.Property(u => u.FailedSignInCount).IsRequired();
         builder.Property(u => u.IsActive).IsRequired();
         builder.Property(u => u.CreatedUtc).IsRequired();

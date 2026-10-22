@@ -37,8 +37,28 @@ public sealed class User
     /// <summary>The AES-GCM tag for <see cref="MfaSecretCiphertext"/>.</summary>
     public byte[]? MfaSecretTag { get; set; }
 
+    /// <summary>
+    /// Which master key generation sealed <see cref="MfaSecretCiphertext"/>.
+    /// </summary>
+    /// <remarks>
+    /// Recorded per row rather than assumed to be the active generation, so a seed sealed
+    /// before a master key rotation stays readable while the re-wrap job works through.
+    /// </remarks>
+    public int MfaSeedMasterKeyVersion { get; set; }
+
     /// <summary>When TOTP enrolment completed. Null means MFA is not active.</summary>
     public DateTimeOffset? MfaEnrolledUtc { get; set; }
+
+    /// <summary>
+    /// The highest TOTP time step this user has already consumed.
+    /// </summary>
+    /// <remarks>
+    /// RFC 6238 only makes a code valid for its time step, so a code captured by a phishing
+    /// proxy or read over a shoulder stays usable for the rest of that step and the skew window
+    /// either side. Recording the step and refusing anything at or below it makes a correct code
+    /// single-use.
+    /// </remarks>
+    public long? LastUsedTotpWindow { get; set; }
 
     /// <summary>Consecutive failed sign-in attempts since the last success.</summary>
     public required int FailedSignInCount { get; set; }

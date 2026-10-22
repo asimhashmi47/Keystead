@@ -6,10 +6,10 @@ keys, connection strings, certificates and tokens, which applications fetch at r
 Built on .NET 10, ASP.NET Core Razor Pages, EF Core and SQLite. Concept-comparable to Azure
 Key Vault, scoped to something a team can actually run on one box.
 
-> **Status: in development.** Milestones M1 and M2 are complete and committed. The
-> cryptographic core is implemented and tested; the user-facing features that sit on top of it
-> are not yet built. See [Current state](#current-state) below for an honest breakdown, and
-> [PLAN.md](PLAN.md) for the full plan.
+> **Status: in development.** Milestones M1, M2 and M3 are complete and committed. The
+> cryptographic core, identity, MFA, sessions and RBAC are implemented and tested. Vaults and
+> secrets themselves (M4 onward) are not yet built. See [Current state](#current-state) below
+> for an honest breakdown, and [PLAN.md](PLAN.md) for the full plan.
 
 ---
 
@@ -53,27 +53,41 @@ an endpoint that forgets to declare a policy fails closed rather than open.
 | Persistence | Full 14-table schema, EF migration applied and checked, 36 indexes, SQLite pragmas (WAL, `foreign_keys`, busy timeout) per connection |
 | Web hardening | Strict nonce CSP from `default-src 'none'`; full header set; `no-store`; no `Server` banner; antiforgery global; rate-limit policies; Kestrel limits |
 | UI foundation | Design system in plain CSS with semantic tokens; app shell with persistent sidebar; progressive-enhancement JS module, no inline script |
+| Identity | Argon2id sign-in with decoy-hash enumeration resistance; progressive lockout; TOTP with single-use replay guard; 10 single-use recovery codes; server-validated sessions with revocation |
+| RBAC | Role/capability matrix as pure domain logic; vault grants with a role ceiling; workspace scoping and authorization checked separately on every call; step-up re-authentication |
+| Setup | First-run wizard that closes permanently once an account exists; recovery kit with the master key fingerprint shown once |
 
-**73 unit tests, all passing.** The failure cases carry the weight: tamper on ciphertext, nonce
+**232 unit tests, all passing.** The failure cases carry the weight: tamper on ciphertext, nonce
 and tag; wrong key; ciphertext moved to another workspace, vault, secret or version; purpose
 confusion; nonce uniqueness across 200 seals; malformed and weaker-parameter password digests;
-pepper mismatch; and audit chain edit, rehash, delete and reorder detection.
+pepper mismatch; audit chain edit, rehash, delete and reorder detection; the full role matrix
+checked exhaustively; TOTP replay and seed relocation; and cross-tenant access attempted from
+six directions and refused each time.
+
+**Verified against the running application**, not just in tests: the strict nonce CSP and full
+header set; a fresh nonce per request; `/` and `/security` redirecting unauthenticated callers;
+the first-run wizard closing itself after use; an Owner being forced into MFA enrolment rather
+than let in; identical error pages for a wrong password and an unknown account; antiforgery
+rejecting both a missing and a forged token with 400; the rate limiter returning 429; and the
+audit chain linking correctly in the live database.
 
 ### Not yet built
 
-Everything from milestone M3 onward in [PLAN.md](PLAN.md):
+Everything from milestone M4 onward in [PLAN.md](PLAN.md):
 
-- **M2 remainder** — first-run setup wizard and one-time recovery kit
-- **M3** — sign-in, TOTP MFA, recovery codes, sessions, RBAC enforcement, step-up re-auth
-- **M4** — vault and secret use cases, versioning, soft delete and recovery, audit writing
+- **M4** — vault and secret use cases, versioning, soft delete and recovery, the reveal flow
 - **M5** — service identities, `/api/v1/token`, the machine API, scope enforcement
 - **M6** — the remaining pages, command palette, accessibility pass
 - **M7** — client SDK (`AddKeystead()`), CLI commands, Docker, reverse proxy config
 - **M8** — integration and security test suites, STRIDE threat model, SECURITY.md, DEPLOYMENT.md
 
 The CLI currently reports its version and prints the command surface it will gain in M7. The
-dashboard renders the shell with placeholder counts, so the layout and design system are
-exercised against a real page.
+dashboard renders the shell with placeholder counts, because the queries behind them need the
+vault and secret model from M4.
+
+Known gaps within what is built: the audit log has no viewer page yet (M4 adds it with the
+chain-verification badge), and the command palette is a Ctrl+K shortcut that focuses search
+rather than a full palette (M6).
 
 ---
 

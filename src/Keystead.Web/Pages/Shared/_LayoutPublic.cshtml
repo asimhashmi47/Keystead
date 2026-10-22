@@ -1,0 +1,50 @@
+@*
+    The unauthenticated layout: sign-in, first-run setup and the forbidden page.
+
+    A split layout with a brand panel rather than the application shell, because there is no
+    workspace to navigate yet. No inline script here either.
+*@
+@inject Keystead.Web.Security.CspNonce Nonce
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>@ViewData["Title"] &middot; Keystead</title>
+    <link rel="stylesheet" href="~/css/keystead.css" />
+    <link rel="icon" href="~/favicon.ico" />
+</head>
+<body class="public">
+    <main class="split">
+        <section class="split__brand">
+            <div class="split__brand-inner">
+                <span class="split__mark" aria-hidden="true">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="10" rx="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                </span>
+                <h1 class="split__title">Keystead</h1>
+                <p class="split__tagline">
+                    Secrets your team can share and your applications can fetch, without anyone
+                    pasting a connection string into a chat window again.
+                </p>
+                <ul class="split__points">
+                    <li>Every value encrypted under its own key</li>
+                    <li>Every read recorded in a tamper-evident log</li>
+                    <li>Self-hosted, so the keys stay yours</li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="split__form">
+            <div class="split__form-inner">
+                @RenderBody()
+            </div>
+        </section>
+    </main>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

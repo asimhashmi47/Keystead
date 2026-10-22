@@ -1,0 +1,41 @@
+@page "/sign-in/recovery"
+@model Keystead.Web.Pages.SignInRecoveryModel
+@{
+    ViewData["Title"] = "Use a recovery code";
+    Layout = "_LayoutPublic";
+}
+
+<div class="form-header">
+    <h2>Use a recovery code</h2>
+    <p>Enter one of the codes you saved when you set up two-factor authentication.</p>
+</div>
+
+@if (Model.Error is not null)
+{
+    <div class="alert alert--danger" role="alert"><div>@Model.Error</div></div>
+}
+
+<form method="post">
+    <div class="field">
+        <label class="field__label" for="code">Recovery code</label>
+        <input class="input input--mono"
+               id="code"
+               type="text"
+               autocomplete="one-time-code"
+               spellcheck="false"
+               autocapitalize="characters"
+               placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
+               autofocus
+               required
+               asp-for="Input.Code" />
+        <p class="field__hint">
+            Dashes, spaces and capitalisation do not matter. Each code works only once.
+        </p>
+    </div>
+
+    <button class="btn btn--primary" type="submit" style="width: 100%;">Sign in</button>
+</form>
+
+<p class="form-footer">
+    <a href="/sign-in/mfa">Back to the authenticator code</a>
+</p>

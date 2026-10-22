@@ -1,8 +1,14 @@
 using System;
 using System.IO;
 using Keystead.Application.Abstractions;
+using Keystead.Application.Auditing;
+using Keystead.Application.Authorization;
 using Keystead.Application.Cryptography;
+using Keystead.Application.Identity;
+using Keystead.Infrastructure.Auditing;
+using Keystead.Infrastructure.Authorization;
 using Keystead.Infrastructure.Cryptography;
+using Keystead.Infrastructure.Identity;
 using Keystead.Infrastructure.Persistence;
 using Keystead.Infrastructure.Time;
 using Microsoft.Data.Sqlite;
@@ -46,6 +52,16 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<PasswordPolicyOptions>()
+            .Bind(configuration.GetSection(PasswordPolicyOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<SessionOptions>()
+            .Bind(configuration.GetSection(SessionOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IAeadCipher, AesGcmCipher>();
 
@@ -56,6 +72,16 @@ public static class DependencyInjection
             sp => sp.GetRequiredService<ConfiguredMasterKeyProvider>());
 
         services.AddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
+        services.AddSingleton<IPasswordPolicy, PasswordPolicy>();
+        services.AddSingleton<IRecoveryCodeService, RecoveryCodeService>();
+        services.AddSingleton<ITotpService, TotpService>();
+
+        // Scoped: these take the request's DbContext, so their lifetime must match it.
+        services.AddScoped<IAuditChain, AuditChain>();
+        services.AddScoped<IAccessPolicy, AccessPolicy>();
+        services.AddScoped<ISignInService, SignInService>();
+        services.AddScoped<IInstallationService, InstallationService>();
+        services.AddScoped<IMfaEnrolmentService, MfaEnrolmentService>();
 
         services.AddDbContext<KeysteadDbContext>((sp, builder) =>
         {

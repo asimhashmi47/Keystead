@@ -2,6 +2,8 @@ using System;
 using System.Threading.RateLimiting;
 using Keystead.Infrastructure;
 using Keystead.Infrastructure.Cryptography;
+using Keystead.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Keystead.Web.Security;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -69,13 +71,70 @@ public static class Program
 
         ConfigureLogging(builder);
         ConfigureKestrel(builder);
+        BootstrapDevelopmentMasterKey(builder);
         ConfigureServices(builder);
 
         var app = builder.Build();
 
         ConfigurePipeline(app);
+        ApplyMigrations(app);
 
         return app;
+    }
+
+    /// <summary>
+    /// In Development only, generates a master key file if one is missing, so that
+    /// <c>dotnet run</c> works on a fresh clone without manual setup.
+    /// </summary>
+    /// <remarks>
+    /// Guarded on the environment deliberately. A server that invents its own master key on
+    /// first boot would mint a fresh one after any deployment that lost the file, and every
+    /// stored secret would silently become undecryptable. In Production the key must be
+    /// supplied by an operator, and the application refuses to start without it.
+    /// </remarks>
+    private static void BootstrapDevelopmentMasterKey(WebApplicationBuilder builder)
+    {
+        if (!builder.Environment.IsDevelopment())
+        {
+            return;
+        }
+
+        var options = new MasterKeyOptions();
+        builder.Configuration.GetSection(MasterKeyOptions.SectionName).Bind(options);
+
+        if (options.Source is MasterKeySource.Environment
+            || string.IsNullOrWhiteSpace(options.FilePath))
+        {
+            return;
+        }
+
+        if (MasterKeyBootstrapper.EnsureKeyFile(options.FilePath))
+        {
+            Log.Warning(
+                "Generated a development master key at {Path}. This is for local development only; supply the key explicitly in Production.",
+                options.FilePath);
+        }
+    }
+
+    /// <summary>
+    /// Applies pending migrations in Development, so a fresh clone has a usable schema.
+    /// </summary>
+    /// <remarks>
+    /// Not done in Production. Migrating automatically on startup means several instances
+    /// racing to alter the same schema during a rolling deploy, and it takes the decision to
+    /// change a database that holds irreplaceable key material out of an operator's hands.
+    /// DEPLOYMENT.md covers running migrations as a deliberate step.
+    /// </remarks>
+    private static void ApplyMigrations(WebApplication app)
+    {
+        if (!app.Environment.IsDevelopment())
+        {
+            return;
+        }
+
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KeysteadDbContext>();
+        db.Database.Migrate();
     }
 
     private static void ConfigureLogging(WebApplicationBuilder builder)
@@ -131,6 +190,25 @@ public static class Program
             .SetApplicationName("Keystead");
 
         services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddCookie(KeysteadSchemes.MfaPending, options =>
+            {
+                // A separate, short-lived scheme that carries nothing but the user id between
+                // the password step and the code step. Putting that id in a form field would
+                // let the client change whose account it is finishing sign-in for; a
+                // data-protected cookie cannot be edited.
+                options.Cookie.Name = "__Host-keystead-mfa";
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.SameSite = SameSiteMode.Strict;
+                options.Cookie.Path = "/";
+                options.Cookie.IsEssential = true;
+
+                // Long enough to read a code off a phone, short enough that an abandoned
+                // half-finished sign-in does not sit around.
+                options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+                options.SlidingExpiration = false;
+                options.LoginPath = "/sign-in";
+            })
             .AddCookie(options =>
             {
                 // The __Host- prefix is the strongest cookie binding a browser offers: it
@@ -150,6 +228,10 @@ public static class Program
                 options.LogoutPath = "/sign-out";
                 options.AccessDeniedPath = "/forbidden";
                 options.ReturnUrlParameter = "next";
+
+                // Re-checks the server-side session on every request, so revoking a session
+                // takes effect immediately rather than when the cookie happens to expire.
+                options.Events.OnValidatePrincipal = SessionCookieValidator.ValidateAsync;
             });
 
         services.AddAuthorizationBuilder()

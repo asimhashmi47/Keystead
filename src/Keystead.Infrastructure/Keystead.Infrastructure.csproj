@@ -20,4 +20,10 @@
     <PackageReference Include="Otp.NET" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The password deny list is embedded so it cannot be removed or emptied by a
+         deployment mistake. PasswordPolicy throws if it is missing, rather than
+         silently accepting every password. -->
+    <EmbeddedResource Include="Identity\CommonPasswords.txt" />
+  </ItemGroup>
 </Project>

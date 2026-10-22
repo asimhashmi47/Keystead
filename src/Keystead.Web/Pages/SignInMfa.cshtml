@@ -1,0 +1,41 @@
+@page "/sign-in/mfa"
+@model Keystead.Web.Pages.SignInMfaModel
+@{
+    ViewData["Title"] = "Two-factor code";
+    Layout = "_LayoutPublic";
+}
+
+<div class="form-header">
+    <h2>Enter your code</h2>
+    <p>Open your authenticator app and enter the six-digit code for Keystead.</p>
+</div>
+
+@if (Model.Error is not null)
+{
+    <div class="alert alert--danger" role="alert"><div>@Model.Error</div></div>
+}
+
+<form method="post">
+    <input type="hidden" asp-for="Next" />
+
+    <div class="field">
+        <label class="field__label" for="code">Six-digit code</label>
+        <input class="input input--mono"
+               id="code"
+               type="text"
+               inputmode="numeric"
+               autocomplete="one-time-code"
+               maxlength="8"
+               autofocus
+               required
+               asp-for="Input.Code" />
+        <p class="field__hint">Codes change every 30 seconds and each one works only once.</p>
+    </div>
+
+    <button class="btn btn--primary" type="submit" style="width: 100%;">Continue</button>
+</form>
+
+<p class="form-footer">
+    Lost access to your authenticator?
+    <a href="/sign-in/recovery">Use a recovery code</a> instead.
+</p>

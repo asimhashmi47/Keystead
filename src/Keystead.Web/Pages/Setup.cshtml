@@ -1,0 +1,92 @@
+@page "/setup"
+@model Keystead.Web.Pages.SetupModel
+@{
+    ViewData["Title"] = "Set up Keystead";
+    Layout = "_LayoutPublic";
+}
+
+@if (Model.MasterKeyCheckValue is not null)
+{
+    <div class="form-header">
+        <h2>Your workspace is ready</h2>
+        <p>Save the details below before you continue. This page will not be shown again.</p>
+    </div>
+
+    <div class="one-time">
+        <p><strong>Master key fingerprint</strong></p>
+        <p><code id="kcv">@Model.MasterKeyCheckValue</code></p>
+        <p class="field__hint">
+            This is a fingerprint, not the key. Keep it with your records so you can confirm
+            later that you are holding the right master key. It is useless to anyone who finds
+            it on its own.
+        </p>
+    </div>
+
+    <div class="alert alert--warning">
+        <div>
+            <p><strong>Back up your master key now.</strong></p>
+            <p>
+                Every secret in this installation is encrypted under it. Keystead does not store
+                it, so if you lose it, the stored data cannot be recovered by us or by anyone
+                else.
+            </p>
+        </div>
+    </div>
+
+    <a class="btn btn--primary" href="/sign-in" style="width: 100%;">Continue to sign in</a>
+}
+else
+{
+    <div class="form-header">
+        <h2>Set up Keystead</h2>
+        <p>Create your workspace and the account that will own it.</p>
+    </div>
+
+    @if (Model.Error is not null)
+    {
+        <div class="alert alert--danger" role="alert"><div>@Model.Error</div></div>
+    }
+
+    <form method="post">
+        <div class="field">
+            <label class="field__label" for="workspace">Workspace name</label>
+            <input class="input" id="workspace" required asp-for="Input.WorkspaceName" />
+            <span class="field__error" asp-validation-for="Input.WorkspaceName"></span>
+        </div>
+
+        <div class="field">
+            <label class="field__label" for="name">Your name</label>
+            <input class="input" id="name" autocomplete="name" required asp-for="Input.DisplayName" />
+            <span class="field__error" asp-validation-for="Input.DisplayName"></span>
+        </div>
+
+        <div class="field">
+            <label class="field__label" for="email">Your email address</label>
+            <input class="input" id="email" type="email" autocomplete="username" required asp-for="Input.Email" />
+            <span class="field__error" asp-validation-for="Input.Email"></span>
+        </div>
+
+        <div class="field">
+            <label class="field__label" for="password">Password</label>
+            <input class="input" id="password" type="password" autocomplete="new-password" required asp-for="Input.Password" />
+            <p class="field__hint">
+                At least 12 characters. A few unrelated words beat a short complicated string,
+                and there are no symbol requirements to work around.
+            </p>
+            <span class="field__error" asp-validation-for="Input.Password"></span>
+        </div>
+
+        <div class="field">
+            <label class="field__label" for="confirm">Confirm password</label>
+            <input class="input" id="confirm" type="password" autocomplete="new-password" required asp-for="Input.ConfirmPassword" />
+            <span class="field__error" asp-validation-for="Input.ConfirmPassword"></span>
+        </div>
+
+        <button class="btn btn--primary" type="submit" style="width: 100%;">Create workspace</button>
+    </form>
+
+    <p class="form-footer">
+        As the owner, you will be asked to set up two-factor authentication before you can use
+        the workspace. It is mandatory for owners and administrators.
+    </p>
+}

@@ -1,0 +1,19 @@
+@page "/sign-out"
+@model Keystead.Web.Pages.SignOutModel
+@{
+    ViewData["Title"] = "Sign out";
+    Layout = "_LayoutPublic";
+}
+
+<div class="form-header">
+    <h2>Sign out</h2>
+    <p>End this session on this device.</p>
+</div>
+
+<form method="post">
+    <button class="btn btn--primary" type="submit" style="width: 100%;">Sign out</button>
+</form>
+
+<p class="form-footer">
+    <a href="/">Stay signed in and go back</a>
+</p>

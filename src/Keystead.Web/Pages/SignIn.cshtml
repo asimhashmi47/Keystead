@@ -1,0 +1,56 @@
+@page "/sign-in"
+@model Keystead.Web.Pages.SignInModel
+@{
+    ViewData["Title"] = "Sign in";
+    Layout = "_LayoutPublic";
+}
+
+<div class="form-header">
+    <h2>Sign in</h2>
+    <p>Use the account your workspace owner created for you.</p>
+</div>
+
+@if (Model.Error is not null)
+{
+    <div class="alert alert--danger" role="alert">
+        <span class="alert__icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 8v4M12 16h.01" />
+            </svg>
+        </span>
+        <div>@Model.Error</div>
+    </div>
+}
+
+<form method="post">
+    <div class="field">
+        <label class="field__label" for="email">Email address</label>
+        <input class="input"
+               id="email"
+               type="email"
+               autocomplete="username"
+               inputmode="email"
+               required
+               asp-for="Input.Email" />
+    </div>
+
+    <div class="field">
+        <label class="field__label" for="password">Password</label>
+        <input class="input"
+               id="password"
+               type="password"
+               autocomplete="current-password"
+               required
+               asp-for="Input.Password" />
+    </div>
+
+    <button class="btn btn--primary" type="submit" style="width: 100%;">Sign in</button>
+</form>
+
+@* The recovery-code route sits after the password step, not beside it: a recovery code
+   replaces the second factor, never the first. *@
+<p class="form-footer">
+    If you have lost your authenticator, enter your password first and you will be offered the
+    option to use a recovery code.
+</p>
