@@ -1,0 +1,43 @@
+@page
+@model Keystead.Web.Pages.ErrorModel
+@{
+    ViewData["Title"] = "Something went wrong";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Something went wrong &middot; Keystead</title>
+    <link rel="stylesheet" href="~/css/keystead.css" />
+</head>
+<body>
+    <main class="content" id="main">
+        <div class="card">
+            <div class="card__body">
+                <h1>Something went wrong</h1>
+                <p class="page-header__description">
+                    The request could not be completed. Nothing was changed.
+                </p>
+
+                @if (!string.IsNullOrEmpty(Model.CorrelationId))
+                {
+                    <div class="alert alert--info">
+                        <div>
+                            <p><strong>Reference</strong></p>
+                            <p><code>@Model.CorrelationId</code></p>
+                            <p>
+                                Quote this reference when reporting the problem. The details are
+                                recorded in the server log.
+                            </p>
+                        </div>
+                    </div>
+                }
+
+                <a class="btn btn--secondary" href="/">Back to the dashboard</a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

@@ -1,0 +1,38 @@
+@page
+@model Keystead.Web.Pages.IndexModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="page-header">
+    <div class="page-header__title">
+        <h1>Dashboard</h1>
+    </div>
+    <p class="page-header__description">
+        An overview of this workspace: what is stored, what needs attention, and who has been
+        reading it.
+    </p>
+</div>
+
+<div class="grid grid--metrics">
+    <div class="metric">
+        <p class="metric__label">Secrets</p>
+        <p class="metric__value">@Model.SecretCount</p>
+        <p class="metric__hint">across @Model.VaultCount vaults</p>
+    </div>
+    <div class="metric">
+        <p class="metric__label">Expiring soon</p>
+        <p class="metric__value">@Model.ExpiringSoonCount</p>
+        <p class="metric__hint">within the next 30 days</p>
+    </div>
+    <div class="metric">
+        <p class="metric__label">Reads today</p>
+        <p class="metric__value">@Model.ReadsToday</p>
+        <p class="metric__hint">by people and applications</p>
+    </div>
+    <div class="metric">
+        <p class="metric__label">Failed sign-ins</p>
+        <p class="metric__value">@Model.FailedSignInsToday</p>
+        <p class="metric__hint">in the last 24 hours</p>
+    </div>
+</div>

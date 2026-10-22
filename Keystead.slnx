@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Keystead.Application/Keystead.Application.csproj" />
+    <Project Path="src/Keystead.Cli/Keystead.Cli.csproj" />
+    <Project Path="src/Keystead.Client/Keystead.Client.csproj" />
+    <Project Path="src/Keystead.Domain/Keystead.Domain.csproj" />
+    <Project Path="src/Keystead.Infrastructure/Keystead.Infrastructure.csproj" />
+    <Project Path="src/Keystead.Web/Keystead.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Keystead.IntegrationTests/Keystead.IntegrationTests.csproj" />
+    <Project Path="tests/Keystead.SecurityTests/Keystead.SecurityTests.csproj" />
+    <Project Path="tests/Keystead.Tests/Keystead.Tests.csproj" />
+  </Folder>
+</Solution>

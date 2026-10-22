@@ -1,0 +1,72 @@
+<Project>
+
+  <!--
+    Shared compiler contract for every project in the solution.
+    A warning is a build failure here on purpose: see CLAUDE.md rule "TreatWarningsAsErrors".
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+
+    <!-- Explicit using lines keep the dependency direction visible in every file. -->
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningLevel>9999</WarningLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!--
+      'latest-Recommended' rather than 'All', deliberately.
+
+      'All' turns on the library API-design rules (CA1002 no List<T> in a signature, CA1819 no
+      array properties, CA2227 no settable collections). Those are right for a published
+      library and wrong for an application whose entities are mapped by EF Core: byte[] is the
+      correct mapping for a ciphertext column, and navigation collections need setters. Running
+      'All' would mean suppressing a dozen such rules one by one, which buys noise, not safety.
+
+      Instead: 'Recommended' as the floor, and every CA security rule explicitly raised to
+      *error* in .editorconfig (CA2100, CA3xxx, CA5xxx). The rules that protect this product's
+      promises fail the build; the stylistic opinions about library surface do not.
+    -->
+    <AnalysisLevel>latest-Recommended</AnalysisLevel>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+
+    <!-- Deterministic, reproducible output. -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- NuGet audit as an error for high severity: supply chain hygiene, section 5. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>high</NuGetAuditLevel>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
+
+    <Authors>Keystead</Authors>
+    <Product>Keystead</Product>
+    <NeutralLanguage>en</NeutralLanguage>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!--
+    CA1515 ("can be made internal") fights the Razor Pages and minimal-API model, where
+    public page models and DTOs are the framework contract. Off for the whole solution.
+    CS1591 (missing XML comment) is noise on page models and test classes.
+  -->
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);CA1515;CS1591</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    Test projects relax the rules that only make sense for shipped libraries.
+    GenerateDocumentationFile stays on: IDE0005 (unused using) is only enforced on build when
+    a doc file is produced, and an unused using is worth catching in a test too. CS1591 is in
+    NoWarn above, so this costs nothing in noise.
+  -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA1707;CA2007;CA1861;CA1812</NoWarn>
+  </PropertyGroup>
+
+</Project>

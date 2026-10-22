@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Keystead.Domain</RootNamespace>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,160 @@
+@*
+    The authenticated application shell.
+
+    Every authenticated page renders inside this layout, so the sidebar is always present
+    (CLAUDE.md UI rules). The sign-in and setup pages use _LayoutPublic instead.
+
+    There is no inline script and no inline event handler anywhere in this file. Behaviour
+    comes from external modules in wwwroot/js, each carrying this request's CSP nonce.
+*@
+@inject Keystead.Web.Security.CspNonce Nonce
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>@ViewData["Title"] &middot; Keystead</title>
+    <link rel="stylesheet" href="~/css/keystead.css" />
+    <link rel="icon" href="~/favicon.ico" />
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+
+    <div class="app">
+        <aside class="sidebar" id="sidebar" data-open="false">
+            <a class="sidebar__brand" href="/">
+                <span class="sidebar__mark" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="10" rx="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                </span>
+                Keystead
+            </a>
+
+            <nav class="sidebar__section" aria-label="Main">
+                <p class="sidebar__label">Workspace</p>
+                <ul class="sidebar__nav">
+                    <li>
+                        <a class="sidebar__link" href="/" aria-current="@Current("/Index")">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="3" width="7" height="9" rx="1.5" />
+                                <rect x="14" y="3" width="7" height="5" rx="1.5" />
+                                <rect x="14" y="12" width="7" height="9" rx="1.5" />
+                                <rect x="3" y="16" width="7" height="5" rx="1.5" />
+                            </svg>
+                            Dashboard
+                        </a>
+                    </li>
+                    <li>
+                        <a class="sidebar__link" href="/vaults" aria-current="@Current("/Vaults/Index")">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="4" width="18" height="16" rx="2.5" />
+                                <circle cx="12" cy="12" r="3.2" />
+                                <path d="M12 8.8V6.2M12 17.8v-2.6M15.2 12h2.6M6.2 12h2.6" />
+                            </svg>
+                            Vaults
+                        </a>
+                    </li>
+                    <li>
+                        <a class="sidebar__link" href="/audit" aria-current="@Current("/Audit/Index")">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M5 3h9l5 5v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+                                <path d="M14 3v5h5M8 13h8M8 17h5" />
+                            </svg>
+                            Audit log
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <nav class="sidebar__section" aria-label="Administration">
+                <p class="sidebar__label">Administration</p>
+                <ul class="sidebar__nav">
+                    <li>
+                        <a class="sidebar__link" href="/members" aria-current="@Current("/Members/Index")">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <circle cx="9" cy="8" r="3.4" />
+                                <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+                                <path d="M16 11.2A3.4 3.4 0 0 0 16 4.6M18 19.4c0-2-.8-3.9-2.2-5.2" />
+                            </svg>
+                            Members
+                        </a>
+                    </li>
+                    <li>
+                        <a class="sidebar__link" href="/identities" aria-current="@Current("/Identities/Index")">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="5" width="18" height="14" rx="2.5" />
+                                <path d="M3 10h18M7.5 14.5h3" />
+                            </svg>
+                            Service identities
+                        </a>
+                    </li>
+                    <li>
+                        <a class="sidebar__link" href="/security" aria-current="@Current("/Security/Index")">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M12 3l7.5 3v5.6c0 4.4-3 8.2-7.5 9.4-4.5-1.2-7.5-5-7.5-9.4V6z" />
+                                <path d="M9.2 12.2l2 2 3.6-3.8" />
+                            </svg>
+                            Security centre
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar__footer">
+                <a class="sidebar__link" href="/profile" aria-current="@Current("/Profile/Index")">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="8.5" r="3.6" />
+                        <path d="M5 20c0-3.6 3.1-6.4 7-6.4s7 2.8 7 6.4" />
+                    </svg>
+                    @(User.Identity?.Name ?? "Profile")
+                </a>
+            </div>
+        </aside>
+
+        <div class="main">
+            <header class="topbar">
+                <button class="btn btn--ghost btn--sm topbar__menu-toggle"
+                        type="button"
+                        data-action="toggle-sidebar"
+                        aria-controls="sidebar"
+                        aria-expanded="false">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                        <path d="M4 7h16M4 12h16M4 17h16" />
+                    </svg>
+                    <span class="visually-hidden">Toggle navigation</span>
+                </button>
+
+                <form class="topbar__search" method="get" action="/search" role="search">
+                    <label class="visually-hidden" for="global-search">Search secrets and vaults</label>
+                    <input class="input"
+                           id="global-search"
+                           name="q"
+                           type="search"
+                           placeholder="Search, or press Ctrl+K"
+                           autocomplete="off" />
+                </form>
+            </header>
+
+            <main class="content" id="main">
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+
+    <script nonce="@Nonce.Value" src="~/js/shell.js" type="module"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
+
+@functions {
+    // Returns the ARIA current value for a nav link, so the active page is announced to a
+    // screen reader as well as being visually highlighted.
+    private string? Current(string page) =>
+        string.Equals(ViewContext.ActionDescriptor.DisplayName, page, System.StringComparison.OrdinalIgnoreCase)
+        || string.Equals((string?)ViewContext.RouteData.Values["page"], page, System.StringComparison.OrdinalIgnoreCase)
+            ? "page"
+            : null;
+}

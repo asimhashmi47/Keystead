@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Keystead.Cli</RootNamespace>
+    <AssemblyName>keystead</AssemblyName>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>keystead</ToolCommandName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Keystead.Client\Keystead.Client.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+</Project>

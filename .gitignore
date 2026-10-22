@@ -1,0 +1,50 @@
+## Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+TestResults/
+*.user
+*.suo
+.vs/
+.idea/
+*.swp
+
+## Coverage
+coverage/
+*.coverage
+*.cobertura.xml
+*.opencover.xml
+
+## ---------------------------------------------------------------------------
+## Key material and databases. Nothing here may ever reach the repository.
+## A committed master key is a total compromise of every secret in the vault.
+## ---------------------------------------------------------------------------
+*.key
+*.pem
+*.pfx
+*.p12
+master.key
+masterkey*
+recovery-kit*
+.keystead/
+secrets/
+
+## SQLite database and its journals
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+data/
+
+## Local environment overrides
+.env
+.env.*
+appsettings.Local.json
+appsettings.*.Local.json
+
+## Backups
+backups/
+*.bak
