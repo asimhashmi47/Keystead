@@ -41,8 +41,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("CreatedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("DataJson")
                         .HasMaxLength(4000)
@@ -119,11 +119,11 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .HasColumnType("BLOB")
                         .IsFixedLength();
 
-                    b.Property<DateTimeOffset>("CreatedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset?>("ExpiresUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("ExpiresUtc")
+                        .HasColumnType("INTEGER");
 
                     b.PrimitiveCollection<string>("IpAllowlist")
                         .IsRequired()
@@ -134,8 +134,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset?>("LastUsedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("LastUsedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -147,8 +147,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .HasColumnType("BLOB")
                         .IsFixedLength();
 
-                    b.Property<DateTimeOffset?>("PreviousSecretExpiresUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("PreviousSecretExpiresUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<Guid>("WorkspaceId")
                         .HasColumnType("TEXT");
@@ -169,8 +169,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("CreatedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
@@ -191,11 +191,11 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     b.Property<long?>("LastUsedTotpWindow")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset?>("LockoutEndUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("LockoutEndUtc")
+                        .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset?>("MfaEnrolledUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("MfaEnrolledUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<byte[]>("MfaSecretCiphertext")
                         .HasMaxLength(256)
@@ -214,8 +214,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     b.Property<int>("MfaSeedMasterKeyVersion")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset>("PasswordChangedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("PasswordChangedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
@@ -242,8 +242,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .HasColumnType("BLOB")
                         .IsFixedLength();
 
-                    b.Property<DateTimeOffset?>("UsedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("UsedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("TEXT");
@@ -261,25 +261,25 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("AbsoluteExpiryUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("AbsoluteExpiryUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("CreatedIp")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("CreatedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset>("LastSeenUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("LastSeenUtc")
+                        .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset?>("LastStepUpUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("LastStepUpUtc")
+                        .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset?>("RevokedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("RevokedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("UserAgent")
                         .IsRequired()
@@ -301,16 +301,16 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     b.Property<int>("Version")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset>("CreatedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("KeyCheckValue")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset?>("RetiredUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("RetiredUtc")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Version");
 
@@ -327,8 +327,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("CreatedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("Enabled")
                         .HasColumnType("INTEGER");
@@ -338,8 +338,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset?>("ExpiresUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("ExpiresUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -349,8 +349,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     b.Property<int?>("RotationReminderDays")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset?>("SoftDeletedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("SoftDeletedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<Guid>("VaultId")
                         .HasColumnType("TEXT");
@@ -420,8 +420,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CreatedBySubjectId")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("CreatedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("Enabled")
                         .HasColumnType("INTEGER");
@@ -465,8 +465,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("CreatedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
@@ -488,8 +488,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset?>("SoftDeletedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("SoftDeletedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<Guid>("WorkspaceId")
                         .HasColumnType("TEXT");
@@ -510,8 +510,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("GrantedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("GrantedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("Permission")
                         .HasColumnType("INTEGER");
@@ -541,14 +541,14 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("CreatedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("MasterKeyVersion")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset?>("RetiredUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("RetiredUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<Guid>("VaultId")
                         .HasColumnType("TEXT");
@@ -575,8 +575,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("CreatedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -602,8 +602,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("GrantedUtc")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("GrantedUtc")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("Role")
                         .HasColumnType("INTEGER");

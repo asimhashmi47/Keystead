@@ -1,0 +1,195 @@
+@page "/vaults"
+@model Keystead.Web.Pages.VaultsModel
+@using Keystead.Application.Vaults
+@using Keystead.Domain.Vaults
+@{
+    ViewData["Title"] = "Vaults";
+}
+
+<div class="page-header">
+    <div class="page-header__title">
+        <h1>Vaults</h1>
+    </div>
+    <p class="page-header__description">
+        A vault groups secrets that belong together and holds its own encryption key, so access
+        and key rotation are scoped to it rather than to the whole workspace.
+    </p>
+</div>
+
+@if (Model.Notice is not null)
+{
+    <div class="alert alert--success" role="status"><div>@Model.Notice</div></div>
+}
+
+@if (Model.Error is not null)
+{
+    <div class="alert alert--danger" role="alert"><div>@Model.Error</div></div>
+}
+
+@if (Model.Items.Count == 0)
+{
+    <div class="card">
+        <div class="empty">
+            <div class="empty__art" aria-hidden="true">
+                <svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="8" y="14" width="48" height="38" rx="5" />
+                    <circle cx="32" cy="33" r="8" />
+                    <path d="M32 25v-4M32 45v-4M40 33h4M20 33h4" />
+                </svg>
+            </div>
+            <p class="empty__title">No vaults yet</p>
+            <p class="empty__body">
+                @if (Model.CanCreate)
+                {
+                    <text>Create one below to start storing secrets.</text>
+                }
+                else
+                {
+                    <text>
+                        You have not been given access to any vaults in this workspace. An
+                        administrator can grant it.
+                    </text>
+                }
+            </p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <div class="card__header">
+            <h2>@Model.Items.Count vault@(Model.Items.Count == 1 ? "" : "s")</h2>
+
+            <a class="btn btn--ghost btn--sm"
+               href="@(Model.ShowDeleted ? "/vaults" : "/vaults?deleted=true")">
+                @(Model.ShowDeleted ? "Hide deleted" : "Show deleted")
+            </a>
+        </div>
+
+        <div class="table-wrap">
+            <table class="table">
+                <caption class="visually-hidden">Vaults in this workspace</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Vault</th>
+                        <th scope="col">Secrets</th>
+                        <th scope="col">Expiring soon</th>
+                        <th scope="col">Access</th>
+                        <th scope="col">Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var vault in Model.Items)
+                    {
+                        <tr>
+                            <td>
+                                <span class="badge badge--neutral"
+                                      style="color: var(--badge-@vault.ColorToken);">
+                                    <span class="badge__dot" aria-hidden="true"></span>
+                                </span>
+                                <a href="/vaults/@vault.Slug"><strong>@vault.Name</strong></a>
+
+                                @if (vault.SoftDeletedUtc is not null)
+                                {
+                                    <span class="badge badge--danger">Deleted</span>
+                                }
+
+                                @if (vault.PurgeProtection)
+                                {
+                                    <span class="badge badge--info">Purge protected</span>
+                                }
+
+                                @if (!string.IsNullOrEmpty(vault.Description))
+                                {
+                                    <div class="field__hint">@vault.Description</div>
+                                }
+                            </td>
+                            <td>@vault.SecretCount</td>
+                            <td>
+                                @if (vault.ExpiringSoonCount > 0)
+                                {
+                                    <span class="badge badge--warning">
+                                        @vault.ExpiringSoonCount
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="field__hint">None</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge @(vault.Permission == VaultPermission.Write ? "badge--success" : "badge--neutral")">
+                                    @(vault.Permission == VaultPermission.Write ? "Read and write" : "Read only")
+                                </span>
+                            </td>
+                            <td>
+                                <time datetime="@vault.CreatedUtc.ToString("O")">
+                                    @vault.CreatedUtc.ToString("d MMM yyyy")
+                                </time>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@if (Model.CanCreate)
+{
+    <div class="card">
+        <div class="card__header">
+            <h2>Create a vault</h2>
+        </div>
+        <div class="card__body">
+            <form method="post" asp-page-handler="Create">
+                <div class="field">
+                    <label class="field__label" for="vault-name">Name</label>
+                    <input class="input" id="vault-name" required asp-for="Input.Name" />
+                    <span class="field__error" asp-validation-for="Input.Name"></span>
+                </div>
+
+                <div class="field">
+                    <label class="field__label" for="vault-description">Description</label>
+                    <input class="input" id="vault-description" asp-for="Input.Description" />
+                    <p class="field__hint">Optional. What belongs in here, and what does not.</p>
+                </div>
+
+                <div class="field">
+                    <label class="field__label" for="vault-color">Badge colour</label>
+                    <select class="select" id="vault-color" asp-for="Input.ColorToken">
+                        @foreach (var token in VaultColorTokens.All)
+                        {
+                            <option value="@token">@token</option>
+                        }
+                    </select>
+                    <p class="field__hint">
+                        Distinguishes this vault at a glance. Colour is never the only signal.
+                    </p>
+                </div>
+
+                <div class="field">
+                    <label class="field__label" for="vault-window">Recovery window (days)</label>
+                    <input class="input" id="vault-window" type="number" min="1" max="365"
+                           asp-for="Input.RecoveryWindowDays" />
+                    <p class="field__hint">
+                        How long a deleted vault stays recoverable before it may be purged.
+                    </p>
+                </div>
+
+                <div class="field">
+                    <label class="field__label" for="vault-protect">
+                        <input id="vault-protect" type="checkbox" asp-for="Input.PurgeProtection" />
+                        Purge protection
+                    </label>
+                    <p class="field__hint">
+                        When on, this vault can never be permanently destroyed, even after its
+                        recovery window elapses. Turning it off later is itself audited.
+                    </p>
+                </div>
+
+                <button class="btn btn--primary" type="submit">Create vault</button>
+            </form>
+        </div>
+    </div>
+}

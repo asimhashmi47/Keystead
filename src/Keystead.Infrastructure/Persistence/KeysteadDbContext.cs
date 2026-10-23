@@ -68,6 +68,29 @@ public sealed class KeysteadDbContext : DbContext
     /// <summary>Master key generations.</summary>
     public DbSet<MasterKeyVersion> MasterKeyVersions => Set<MasterKeyVersion>();
 
+    /// <summary>
+    /// Applies the UTC-ticks conversion to every timestamp in the model.
+    /// </summary>
+    /// <remarks>
+    /// Set as a convention rather than per property, so a timestamp added later gets it
+    /// automatically. Forgetting it on one column would produce a text date that compares
+    /// lexicographically and cannot be aggregated, and the failure would only appear the first
+    /// time something queried on it.
+    /// </remarks>
+    /// <param name="configurationBuilder">The convention builder.</param>
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(configurationBuilder);
+
+        base.ConfigureConventions(configurationBuilder);
+
+        configurationBuilder.Properties<DateTimeOffset>()
+            .HaveConversion<UtcTicksConverter>();
+
+        configurationBuilder.Properties<DateTimeOffset?>()
+            .HaveConversion<NullableUtcTicksConverter>();
+    }
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

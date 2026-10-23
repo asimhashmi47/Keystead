@@ -1,0 +1,47 @@
+@page "/step-up"
+@model Keystead.Web.Pages.StepUpModel
+@{
+    ViewData["Title"] = "Confirm your identity";
+}
+
+<div class="page-header">
+    <div class="page-header__title">
+        <h1>Confirm your identity</h1>
+    </div>
+    <p class="page-header__description">
+        This action needs your identity confirmed again. Being signed in is not by itself
+        permission to reveal a secret or change who can reach one.
+    </p>
+</div>
+
+<div class="card" style="max-width: 28rem;">
+    <div class="card__body">
+        @if (Model.Error is not null)
+        {
+            <div class="alert alert--danger" role="alert"><div>@Model.Error</div></div>
+        }
+
+        <form method="post">
+            <input type="hidden" asp-for="Next" />
+
+            <div class="field">
+                <label class="field__label" for="su-password">Password</label>
+                <input class="input" id="su-password" type="password"
+                       autocomplete="current-password" required autofocus
+                       asp-for="Input.Password" />
+            </div>
+
+            <div class="field">
+                <label class="field__label" for="su-code">Authenticator code</label>
+                <input class="input input--mono" id="su-code" type="text"
+                       inputmode="numeric" autocomplete="one-time-code" maxlength="8"
+                       asp-for="Input.TotpCode" />
+                <p class="field__hint">
+                    Required if you have an authenticator set up. Leave blank otherwise.
+                </p>
+            </div>
+
+            <button class="btn btn--primary" type="submit" style="width: 100%;">Confirm</button>
+        </form>
+    </div>
+</div>

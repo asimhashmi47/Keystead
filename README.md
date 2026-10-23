@@ -6,10 +6,12 @@ keys, connection strings, certificates and tokens, which applications fetch at r
 Built on .NET 10, ASP.NET Core Razor Pages, EF Core and SQLite. Concept-comparable to Azure
 Key Vault, scoped to something a team can actually run on one box.
 
-> **Status: in development.** Milestones M1, M2 and M3 are complete and committed. The
-> cryptographic core, identity, MFA, sessions and RBAC are implemented and tested. Vaults and
-> secrets themselves (M4 onward) are not yet built. See [Current state](#current-state) below
-> for an honest breakdown, and [PLAN.md](PLAN.md) for the full plan.
+> **Status: in development.** Milestones M1 to M4 are complete and committed. Keystead now
+> does its actual job end to end: you can set it up, sign in with a second factor, create a
+> vault, store a secret, reveal it after confirming your identity, roll it back, and read a
+> tamper-evident log of all of it. The machine API, SDK and CLI (M5 onward) are not yet built,
+> so applications cannot fetch secrets at runtime yet. See [Current state](#current-state) for
+> an honest breakdown, and [PLAN.md](PLAN.md) for the full plan.
 
 ---
 
@@ -56,13 +58,20 @@ an endpoint that forgets to declare a policy fails closed rather than open.
 | Identity | Argon2id sign-in with decoy-hash enumeration resistance; progressive lockout; TOTP with single-use replay guard; 10 single-use recovery codes; server-validated sessions with revocation |
 | RBAC | Role/capability matrix as pure domain logic; vault grants with a role ceiling; workspace scoping and authorization checked separately on every call; step-up re-authentication |
 | Setup | First-run wizard that closes permanently once an account exists; recovery kit with the master key fingerprint shown once |
+| Vaults | Create, list, soft delete, recover, purge; per-vault key created with the vault; recovery window and purge protection enforced |
+| Secrets | Append-only versions, enable/disable, soft delete and recover, expiry and rotation reminders, tags, environment scoping |
+| Reveal | Masked by default, never in the page markup, fetched by `POST` with an antiforgery token, step-up required, `no-store`, auto-hides after 30 seconds |
+| Rollback | Re-seals the old value as a new version rather than reviving the old row, so history stays append-only and the rollback is itself auditable |
+| Audit viewer | Filterable log with a chain-verification badge and a CSV export that is guarded against spreadsheet formula injection |
 
-**232 unit tests, all passing.** The failure cases carry the weight: tamper on ciphertext, nonce
+**297 unit tests, all passing.** The failure cases carry the weight: tamper on ciphertext, nonce
 and tag; wrong key; ciphertext moved to another workspace, vault, secret or version; purpose
 confusion; nonce uniqueness across 200 seals; malformed and weaker-parameter password digests;
 pepper mismatch; audit chain edit, rehash, delete and reorder detection; the full role matrix
-checked exhaustively; TOTP replay and seed relocation; and cross-tenant access attempted from
-six directions and refused each time.
+checked exhaustively; TOTP replay and seed relocation; cross-tenant access attempted from six
+directions and refused each time; and the full three-tier envelope with a value relocated to
+another workspace, vault, secret and version, a data key spliced in from a different version,
+and a value presented as its own wrapped key.
 
 **Verified against the running application**, not just in tests: the strict nonce CSP and full
 header set; a fresh nonce per request; `/` and `/security` redirecting unauthenticated callers;
@@ -71,23 +80,28 @@ than let in; identical error pages for a wrong password and an unknown account; 
 rejecting both a missing and a forged token with 400; the rate limiter returning 429; and the
 audit chain linking correctly in the live database.
 
+`scripts/smoke-flow.py` drives the running application through the whole flow and asserts 41
+properties, including that the secret value appears in no list page, no detail page, no `GET`
+response, no audit row and no CSV export. Run it against a development instance with
+`python scripts/smoke-flow.py https://localhost:5001`. M8 ports these assertions into
+`Keystead.IntegrationTests` and `Keystead.SecurityTests`.
+
 ### Not yet built
 
-Everything from milestone M4 onward in [PLAN.md](PLAN.md):
-
-- **M4** — vault and secret use cases, versioning, soft delete and recovery, the reveal flow
+Everything from milestone M5 onward in [PLAN.md](PLAN.md):
 - **M5** — service identities, `/api/v1/token`, the machine API, scope enforcement
 - **M6** — the remaining pages, command palette, accessibility pass
 - **M7** — client SDK (`AddKeystead()`), CLI commands, Docker, reverse proxy config
 - **M8** — integration and security test suites, STRIDE threat model, SECURITY.md, DEPLOYMENT.md
 
-The CLI currently reports its version and prints the command surface it will gain in M7. The
-dashboard renders the shell with placeholder counts, because the queries behind them need the
-vault and secret model from M4.
+The CLI currently reports its version and prints the command surface it will gain in M7.
 
-Known gaps within what is built: the audit log has no viewer page yet (M4 adds it with the
-chain-verification badge), and the command palette is a Ctrl+K shortcut that focuses search
-rather than a full palette (M6).
+Known gaps within what is built: there is no workspace switcher yet (a user with one workspace
+cannot tell), vault access grants are seeded directly rather than managed through a members
+page (M6), the command palette is a Ctrl+K shortcut that focuses search rather than a full
+palette (M6), and key rotation is modelled and stored but has no background job to run it
+(M5). Revealing a secret requires JavaScript; every other action, including storing a value
+and rolling back, works without it.
 
 ---
 

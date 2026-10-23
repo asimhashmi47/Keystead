@@ -1,0 +1,249 @@
+@page "/vaults/{slug}"
+@model Keystead.Web.Pages.VaultDetailModel
+@{
+    ViewData["Title"] = Model.Vault?.Name ?? "Vault";
+}
+
+@if (Model.Vault is { } vault)
+{
+    <nav aria-label="Breadcrumb">
+        <ol class="breadcrumbs">
+            <li><a href="/vaults">Vaults</a></li>
+            <li aria-hidden="true">/</li>
+            <li aria-current="page">@vault.Name</li>
+        </ol>
+    </nav>
+
+    <div class="page-header">
+        <div class="page-header__title">
+            <span class="badge badge--neutral" style="color: var(--badge-@vault.ColorToken);">
+                <span class="badge__dot" aria-hidden="true"></span>
+            </span>
+            <h1>@vault.Name</h1>
+
+            @if (vault.SoftDeletedUtc is not null)
+            {
+                <span class="badge badge--danger">Deleted</span>
+            }
+
+            @if (!Model.CanWrite)
+            {
+                <span class="badge badge--neutral">Read only</span>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(vault.Description))
+        {
+            <p class="page-header__description">@vault.Description</p>
+        }
+    </div>
+
+    @if (Model.Notice is not null)
+    {
+        <div class="alert alert--success" role="status"><div>@Model.Notice</div></div>
+    }
+
+    @if (Model.Error is not null)
+    {
+        <div class="alert alert--danger" role="alert"><div>@Model.Error</div></div>
+    }
+
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <div class="card__header">
+            <h2>Secrets</h2>
+
+            <form method="get" style="display: flex; gap: var(--space-2); align-items: center;">
+                <label class="visually-hidden" for="q">Search secret names</label>
+                <input class="input input--sm" id="q" name="q" type="search"
+                       placeholder="Search names" value="@Model.Search" />
+
+                <label class="visually-hidden" for="env">Environment</label>
+                <select class="select" id="env" name="env">
+                    <option value="">All environments</option>
+                    @foreach (var environment in Model.Environments)
+                    {
+                        <option value="@environment"
+                                selected="@(environment == Model.EnvironmentFilter)">
+                            @environment
+                        </option>
+                    }
+                </select>
+
+                @if (Model.ShowDeleted)
+                {
+                    <input type="hidden" name="deleted" value="true" />
+                }
+
+                <button class="btn btn--secondary btn--sm" type="submit">Filter</button>
+            </form>
+        </div>
+
+        @if (Model.Secrets.Count == 0)
+        {
+            <div class="empty">
+                <div class="empty__art" aria-hidden="true">
+                    <svg width="56" height="56" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="16" y="28" width="32" height="24" rx="4" />
+                        <path d="M24 28v-6a8 8 0 0 1 16 0v6" />
+                        <circle cx="32" cy="40" r="2.5" />
+                    </svg>
+                </div>
+                <p class="empty__title">No secrets here</p>
+                <p class="empty__body">
+                    @if (Model.CanWrite)
+                    {
+                        <text>Add one below. Its value is encrypted under this vault's key before it is stored.</text>
+                    }
+                    else
+                    {
+                        <text>This vault is empty, or nothing in it matches your filter.</text>
+                    }
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table">
+                    <caption class="visually-hidden">Secrets in @vault.Name</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">Environment</th>
+                            <th scope="col">Versions</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var secret in Model.Secrets)
+                        {
+                            <tr>
+                                <td>
+                                    <a href="/vaults/@vault.Slug/secrets/@secret.Id">
+                                        <strong>@secret.Name</strong>
+                                    </a>
+                                    @if (secret.Tags.Count > 0)
+                                    {
+                                        <div class="field__hint">
+                                            @foreach (var tag in secret.Tags)
+                                            {
+                                                <span class="badge badge--neutral">@tag.Key: @tag.Value</span>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+                                <td><span class="badge badge--neutral">@secret.Environment</span></td>
+                                <td>
+                                    v@(secret.LatestVersion)
+                                    <span class="field__hint">of @secret.VersionCount</span>
+                                </td>
+                                <td>
+                                    @if (secret.SoftDeletedUtc is not null)
+                                    {
+                                        <span class="badge badge--danger">Deleted</span>
+                                    }
+                                    else if (!secret.Enabled)
+                                    {
+                                        <span class="badge badge--neutral">Disabled</span>
+                                    }
+                                    else if (secret.IsExpired(Model.Now))
+                                    {
+                                        <span class="badge badge--danger">Expired</span>
+                                    }
+                                    else if (secret.IsExpiringSoon(Model.Now, TimeSpan.FromDays(30)))
+                                    {
+                                        <span class="badge badge--warning">Expiring soon</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge--success">
+                                            <span class="badge__dot" aria-hidden="true"></span> Active
+                                        </span>
+                                    }
+                                </td>
+                                <td>
+                                    <time datetime="@secret.UpdatedUtc.ToString("O")">
+                                        @secret.UpdatedUtc.ToString("d MMM yyyy")
+                                    </time>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <div class="card__footer">
+            <a class="btn btn--ghost btn--sm"
+               href="/vaults/@vault.Slug@(Model.ShowDeleted ? "" : "?deleted=true")">
+                @(Model.ShowDeleted ? "Hide deleted secrets" : "Show deleted secrets")
+            </a>
+        </div>
+    </div>
+
+    @if (Model.CanWrite && vault.SoftDeletedUtc is null)
+    {
+        <div class="card">
+            <div class="card__header">
+                <h2>Add a secret</h2>
+            </div>
+            <div class="card__body">
+                <form method="post" asp-page-handler="Create" autocomplete="off">
+                    <div class="field">
+                        <label class="field__label" for="s-name">Name</label>
+                        <input class="input input--mono" id="s-name" required asp-for="Input.Name" />
+                        <p class="field__hint">
+                            Use <code>--</code> or <code>__</code> where a .NET configuration key
+                            would have a colon, for example
+                            <code>ConnectionStrings--Default</code>.
+                        </p>
+                        <span class="field__error" asp-validation-for="Input.Name"></span>
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="s-env">Environment</label>
+                        <input class="input" id="s-env" required asp-for="Input.Environment" />
+                        <p class="field__hint">
+                            The same name can hold a different value per environment.
+                        </p>
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="s-value">Value</label>
+                        <textarea class="textarea input--mono" id="s-value" rows="3"
+                                  required autocomplete="off" spellcheck="false"
+                                  asp-for="Input.Value"></textarea>
+                        <p class="field__hint">
+                            Encrypted under a key unique to this version before it is stored.
+                            It is never shown again without confirming your identity.
+                        </p>
+                        <span class="field__error" asp-validation-for="Input.Value"></span>
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="s-type">Content type</label>
+                        <input class="input" id="s-type" placeholder="text/plain"
+                               asp-for="Input.ContentType" />
+                        <p class="field__hint">Optional hint for the applications that read it.</p>
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="s-tagkey">Tag</label>
+                        <div style="display: flex; gap: var(--space-2);">
+                            <input class="input" id="s-tagkey" placeholder="owner"
+                                   asp-for="Input.TagKey" />
+                            <input class="input" placeholder="platform-team"
+                                   asp-for="Input.TagValue" />
+                        </div>
+                        <p class="field__hint">
+                            Optional, and shown in lists, so never put anything sensitive here.
+                        </p>
+                    </div>
+
+                    <button class="btn btn--primary" type="submit">Store secret</button>
+                </form>
+            </div>
+        </div>
+    }
+}

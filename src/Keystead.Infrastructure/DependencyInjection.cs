@@ -5,11 +5,17 @@ using Keystead.Application.Auditing;
 using Keystead.Application.Authorization;
 using Keystead.Application.Cryptography;
 using Keystead.Application.Identity;
+using Keystead.Application.Secrets;
+using Keystead.Application.Vaults;
+using Keystead.Application.Workspaces;
 using Keystead.Infrastructure.Auditing;
 using Keystead.Infrastructure.Authorization;
 using Keystead.Infrastructure.Cryptography;
 using Keystead.Infrastructure.Identity;
 using Keystead.Infrastructure.Persistence;
+using Keystead.Infrastructure.Secrets;
+using Keystead.Infrastructure.Vaults;
+using Keystead.Infrastructure.Workspaces;
 using Keystead.Infrastructure.Time;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -78,10 +84,16 @@ public static class DependencyInjection
 
         // Scoped: these take the request's DbContext, so their lifetime must match it.
         services.AddScoped<IAuditChain, AuditChain>();
+        services.AddScoped<IAuditQuery, AuditQuery>();
         services.AddScoped<IAccessPolicy, AccessPolicy>();
         services.AddScoped<ISignInService, SignInService>();
         services.AddScoped<IInstallationService, InstallationService>();
         services.AddScoped<IMfaEnrolmentService, MfaEnrolmentService>();
+        services.AddScoped<IVaultKeyService, VaultKeyService>();
+        services.AddScoped<ISecretProtector, SecretProtector>();
+        services.AddScoped<IVaultService, VaultService>();
+        services.AddScoped<ISecretService, SecretService>();
+        services.AddScoped<ICurrentWorkspace, CurrentWorkspace>();
 
         services.AddDbContext<KeysteadDbContext>((sp, builder) =>
         {

@@ -30,7 +30,7 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     UserAgent = table.Column<string>(type: "TEXT", maxLength: 512, nullable: true),
                     CorrelationId = table.Column<string>(type: "TEXT", maxLength: 64, nullable: true),
                     DataJson = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
-                    CreatedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    CreatedUtc = table.Column<long>(type: "INTEGER", nullable: false),
                     PreviousHash = table.Column<byte[]>(type: "BLOB", fixedLength: true, maxLength: 32, nullable: false),
                     Hash = table.Column<byte[]>(type: "BLOB", fixedLength: true, maxLength: 32, nullable: false)
                 },
@@ -45,8 +45,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                 {
                     Version = table.Column<int>(type: "INTEGER", nullable: false),
                     KeyCheckValue = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
-                    CreatedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    RetiredUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: true)
+                    CreatedUtc = table.Column<long>(type: "INTEGER", nullable: false),
+                    RetiredUtc = table.Column<long>(type: "INTEGER", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -63,11 +63,11 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     ClientId = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
                     ClientSecretHash = table.Column<byte[]>(type: "BLOB", fixedLength: true, maxLength: 32, nullable: false),
                     PreviousClientSecretHash = table.Column<byte[]>(type: "BLOB", fixedLength: true, maxLength: 32, nullable: true),
-                    PreviousSecretExpiresUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
-                    ExpiresUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
+                    PreviousSecretExpiresUtc = table.Column<long>(type: "INTEGER", nullable: true),
+                    ExpiresUtc = table.Column<long>(type: "INTEGER", nullable: true),
                     ip_allowlist = table.Column<string>(type: "TEXT", maxLength: 2048, nullable: false),
-                    CreatedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    LastUsedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
+                    CreatedUtc = table.Column<long>(type: "INTEGER", nullable: false),
+                    LastUsedUtc = table.Column<long>(type: "INTEGER", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
@@ -83,14 +83,16 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     Email = table.Column<string>(type: "TEXT", maxLength: 320, nullable: false),
                     DisplayName = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     PasswordHash = table.Column<string>(type: "TEXT", maxLength: 512, nullable: false),
-                    PasswordChangedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    PasswordChangedUtc = table.Column<long>(type: "INTEGER", nullable: false),
                     MfaSecretCiphertext = table.Column<byte[]>(type: "BLOB", maxLength: 256, nullable: true),
                     MfaSecretNonce = table.Column<byte[]>(type: "BLOB", fixedLength: true, maxLength: 12, nullable: true),
                     MfaSecretTag = table.Column<byte[]>(type: "BLOB", fixedLength: true, maxLength: 16, nullable: true),
-                    MfaEnrolledUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
+                    MfaSeedMasterKeyVersion = table.Column<int>(type: "INTEGER", nullable: false),
+                    MfaEnrolledUtc = table.Column<long>(type: "INTEGER", nullable: true),
+                    LastUsedTotpWindow = table.Column<long>(type: "INTEGER", nullable: true),
                     FailedSignInCount = table.Column<int>(type: "INTEGER", nullable: false),
-                    LockoutEndUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
-                    CreatedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    LockoutEndUtc = table.Column<long>(type: "INTEGER", nullable: true),
+                    CreatedUtc = table.Column<long>(type: "INTEGER", nullable: false),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
@@ -108,8 +110,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     Slug = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
                     Description = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
                     ColorToken = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
-                    CreatedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    SoftDeletedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
+                    CreatedUtc = table.Column<long>(type: "INTEGER", nullable: false),
+                    SoftDeletedUtc = table.Column<long>(type: "INTEGER", nullable: true),
                     RecoveryWindowDays = table.Column<int>(type: "INTEGER", nullable: false),
                     PurgeProtection = table.Column<bool>(type: "INTEGER", nullable: false)
                 },
@@ -125,7 +127,7 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     Name = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     Slug = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    CreatedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false)
+                    CreatedUtc = table.Column<long>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -139,7 +141,7 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     UserId = table.Column<Guid>(type: "TEXT", nullable: false),
                     CodeHash = table.Column<byte[]>(type: "BLOB", fixedLength: true, maxLength: 32, nullable: false),
-                    UsedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: true)
+                    UsedUtc = table.Column<long>(type: "INTEGER", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -158,13 +160,13 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     UserId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CreatedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    LastSeenUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    AbsoluteExpiryUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    CreatedUtc = table.Column<long>(type: "INTEGER", nullable: false),
+                    LastSeenUtc = table.Column<long>(type: "INTEGER", nullable: false),
+                    AbsoluteExpiryUtc = table.Column<long>(type: "INTEGER", nullable: false),
                     CreatedIp = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
                     UserAgent = table.Column<string>(type: "TEXT", maxLength: 512, nullable: false),
-                    RevokedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
-                    LastStepUpUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: true)
+                    RevokedUtc = table.Column<long>(type: "INTEGER", nullable: true),
+                    LastStepUpUtc = table.Column<long>(type: "INTEGER", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -187,10 +189,10 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     Environment = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
                     ContentType = table.Column<string>(type: "TEXT", maxLength: 128, nullable: true),
                     Enabled = table.Column<bool>(type: "INTEGER", nullable: false),
-                    ExpiresUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
+                    ExpiresUtc = table.Column<long>(type: "INTEGER", nullable: true),
                     RotationReminderDays = table.Column<int>(type: "INTEGER", nullable: true),
-                    CreatedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    SoftDeletedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: true)
+                    CreatedUtc = table.Column<long>(type: "INTEGER", nullable: false),
+                    SoftDeletedUtc = table.Column<long>(type: "INTEGER", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -212,7 +214,7 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     SubjectId = table.Column<Guid>(type: "TEXT", nullable: false),
                     SubjectType = table.Column<int>(type: "INTEGER", nullable: false),
                     Permission = table.Column<int>(type: "INTEGER", nullable: false),
-                    GrantedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false)
+                    GrantedUtc = table.Column<long>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -234,8 +236,8 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     Version = table.Column<int>(type: "INTEGER", nullable: false),
                     WrappedKek = table.Column<byte[]>(type: "BLOB", maxLength: 128, nullable: false),
                     MasterKeyVersion = table.Column<int>(type: "INTEGER", nullable: false),
-                    CreatedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    RetiredUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: true)
+                    CreatedUtc = table.Column<long>(type: "INTEGER", nullable: false),
+                    RetiredUtc = table.Column<long>(type: "INTEGER", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -256,7 +258,7 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     WorkspaceId = table.Column<Guid>(type: "TEXT", nullable: false),
                     UserId = table.Column<Guid>(type: "TEXT", nullable: false),
                     Role = table.Column<int>(type: "INTEGER", nullable: false),
-                    GrantedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false)
+                    GrantedUtc = table.Column<long>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -308,7 +310,7 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     WrappedDek = table.Column<byte[]>(type: "BLOB", maxLength: 128, nullable: false),
                     KekVersion = table.Column<int>(type: "INTEGER", nullable: false),
                     Enabled = table.Column<bool>(type: "INTEGER", nullable: false),
-                    CreatedUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    CreatedUtc = table.Column<long>(type: "INTEGER", nullable: false),
                     CreatedBySubjectId = table.Column<Guid>(type: "TEXT", nullable: false),
                     CreatedByLabel = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false)
                 },

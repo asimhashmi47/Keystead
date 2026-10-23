@@ -1,0 +1,155 @@
+@page "/audit"
+@model Keystead.Web.Pages.AuditModel
+@using Keystead.Domain.Auditing
+@{
+    ViewData["Title"] = "Audit log";
+}
+
+<div class="page-header">
+    <div class="page-header__title">
+        <h1>Audit log</h1>
+
+        @if (Model.Verification is { } verification)
+        {
+            @if (verification.IsIntact)
+            {
+                <span class="badge badge--success" title="Every entry matches its recorded hash and the sequence is unbroken.">
+                    <span class="badge__dot" aria-hidden="true"></span>
+                    Chain verified
+                </span>
+            }
+            else
+            {
+                <span class="badge badge--danger" title="@verification.Failure">
+                    <span class="badge__dot" aria-hidden="true"></span>
+                    Chain broken at entry @verification.FirstBrokenSeq
+                </span>
+            }
+        }
+    </div>
+    <p class="page-header__description">
+        Every read, write, sign-in and refusal, in order. Each entry commits to the one before
+        it, so an entry cannot be altered or removed without the chain failing verification.
+    </p>
+</div>
+
+@if (Model.Error is not null)
+{
+    <div class="alert alert--danger" role="alert"><div>@Model.Error</div></div>
+}
+else if (Model.Entries is { } log)
+{
+    @if (Model.Verification is { IsIntact: false } broken)
+    {
+        <div class="alert alert--danger" role="alert">
+            <div>
+                <p><strong>This log has been tampered with.</strong></p>
+                <p>@broken.Failure</p>
+                <p>
+                    Entries before the break still verify, so the record up to that point can
+                    be trusted. Everything from there on should be treated as unreliable.
+                </p>
+            </div>
+        </div>
+    }
+
+    <div class="card">
+        <div class="card__header">
+            <h2>@log.TotalCount entr@(log.TotalCount == 1 ? "y" : "ies")</h2>
+
+            <div style="display: flex; gap: var(--space-2); align-items: center;">
+                <form method="get" style="display: flex; gap: var(--space-2);">
+                    <label class="visually-hidden" for="q">Search actor or resource</label>
+                    <input class="input" id="q" name="q" type="search"
+                           placeholder="Actor or resource" value="@Model.Search" />
+
+                    <label class="visually-hidden" for="outcome">Outcome</label>
+                    <select class="select" id="outcome" name="outcome">
+                        <option value="">Any outcome</option>
+                        @foreach (var outcome in Enum.GetValues<AuditOutcome>())
+                        {
+                            <option value="@outcome" selected="@(outcome == Model.OutcomeFilter)">
+                                @outcome
+                            </option>
+                        }
+                    </select>
+
+                    <button class="btn btn--secondary btn--sm" type="submit">Filter</button>
+                </form>
+
+                <a class="btn btn--ghost btn--sm"
+                   href="@Url.Page("/Audit", "Export", new { q = Model.Search, outcome = Model.OutcomeFilter, action = Model.ActionFilter })">
+                    Export CSV
+                </a>
+            </div>
+        </div>
+
+        @if (log.Entries.Count == 0)
+        {
+            <div class="empty">
+                <p class="empty__title">Nothing recorded yet</p>
+                <p class="empty__body">
+                    Entries appear here as soon as anyone signs in, reads a secret, or is
+                    refused one.
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table">
+                    <caption class="visually-hidden">Audit entries, newest first</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">When</th>
+                            <th scope="col">Who</th>
+                            <th scope="col">What</th>
+                            <th scope="col">Resource</th>
+                            <th scope="col">From</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in log.Entries)
+                        {
+                            <tr>
+                                <td><span class="field__hint">@entry.Seq</span></td>
+                                <td>
+                                    <time datetime="@entry.CreatedUtc.ToString("O")">
+                                        @entry.CreatedUtc.ToString("d MMM, HH:mm:ss")
+                                    </time>
+                                </td>
+                                <td>@entry.ActorLabel</td>
+                                <td>
+                                    @if (entry.Outcome == AuditOutcome.Success)
+                                    {
+                                        <span class="badge badge--success">@entry.Action</span>
+                                    }
+                                    else if (entry.Outcome == AuditOutcome.Denied)
+                                    {
+                                        <span class="badge badge--warning">@entry.Action</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge--danger">@entry.Action</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(entry.ResourceLabel))
+                                    {
+                                        <text>@entry.ResourceLabel</text>
+                                    }
+                                    else
+                                    {
+                                        <span class="field__hint">@entry.ResourceType</span>
+                                    }
+                                </td>
+                                <td><code class="field__hint">@entry.IpAddress</code></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
