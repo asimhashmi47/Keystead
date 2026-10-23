@@ -17,9 +17,16 @@ It outranks habit. If a change would violate a rule here, stop and fix the desig
 4. **Every ciphertext is bound to its row with AAD.** The AAD always includes the full context
    path (workspace, vault, secret, version). A ciphertext must not decrypt in another row.
 5. **Secret plaintext never leaves the intended path.** Never logged, never in an exception
-   message, never in a URL, query string or `GET` response, never in a list payload, never in a
-   DTO that reaches a view model. Zero the buffer with
-   `CryptographicOperations.ZeroMemory` when done.
+   message, **never in a URL or query string**, never in a list payload, never in a DTO that
+   reaches a view model. Zero the buffer with `CryptographicOperations.ZeroMemory` when done.
+
+   On `GET`: a secret value must never be returned by a request a *browser* can be made to
+   issue, because that puts it in history, in a shared cache, and in a referrer. The human UI
+   therefore reveals only by `POST` with an antiforgery token. The machine API is a different
+   case and `GET /api/v1/vaults/{id}/secrets/{name}` does return a value: it requires a bearer
+   token no browser will attach, sends `Cache-Control: no-store`, and is the shape every SDK
+   expects. The value is in the body, never the URL. Anything relaxing this needs the same
+   three properties, stated at the call site.
 6. **Constant-time comparison** for every hash, tag, token and code check
    (`CryptographicOperations.FixedTimeEquals`). Never `==` on secret-derived bytes.
 7. **Deny by default.** The authorization fallback policy requires an authenticated principal.

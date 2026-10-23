@@ -1,0 +1,314 @@
+@page "/identities"
+@model Keystead.Web.Pages.IdentitiesModel
+@{
+    ViewData["Title"] = "Service identities";
+
+    // Built once so the snippets below show the endpoint the operator actually reached this
+    // page on, rather than a placeholder they would have to remember to replace.
+    var endpoint = $"{Request.Scheme}://{Request.Host}";
+}
+
+<div class="page-header">
+    <div class="page-header__title">
+        <h1>Service identities</h1>
+    </div>
+    <p class="page-header__description">
+        A service identity lets an application read secrets at runtime. It authenticates with
+        client credentials, receives a short-lived token, and can reach only the vaults you
+        grant it.
+    </p>
+</div>
+
+@if (Model.Notice is not null)
+{
+    <div class="alert alert--success" role="status"><div>@Model.Notice</div></div>
+}
+
+@if (Model.Error is not null)
+{
+    <div class="alert alert--danger" role="alert"><div>@Model.Error</div></div>
+}
+
+@if (Model.IssuedSecret is { } secret)
+{
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <div class="card__header">
+            <h2>
+                @(Model.IssuedByRotation ? "New client secret" : "Identity created")
+            </h2>
+        </div>
+        <div class="card__body">
+            <div class="alert alert--warning">
+                <div>
+                    <p><strong>Copy this now. It is not shown again.</strong></p>
+                    <p>
+                        Keystead stores only a hash of it, so there is no way to retrieve it
+                        later. If you lose it, rotate the secret and update your deployments.
+                    </p>
+                </div>
+            </div>
+
+            <div class="field">
+                <p class="field__label">Client ID</p>
+                <div class="secret-value"><code id="issued-client-id">@Model.IssuedClientId</code></div>
+            </div>
+
+            <div class="field">
+                <p class="field__label">Client secret</p>
+                <div class="secret-value"><code id="issued-secret">@secret</code></div>
+                <button class="btn btn--ghost btn--sm"
+                        type="button"
+                        data-action="copy"
+                        data-copy-target="issued-secret">
+                    Copy secret
+                </button>
+            </div>
+
+            @if (Model.IssuedByRotation)
+            {
+                <p class="field__hint">
+                    The previous secret keeps working for its overlap period, so you can roll
+                    this out without downtime. After that, only this one authenticates.
+                </p>
+            }
+
+            <h3 style="margin-top: var(--space-6);">Using it</h3>
+
+            <div class="field">
+                <p class="field__label">.NET configuration</p>
+                <pre class="secret-value"><code>builder.Configuration.AddKeystead(options =>
+{
+    options.Endpoint = new Uri("@endpoint");
+    options.ClientId = "@Model.IssuedClientId";
+    options.ClientSecret = builder.Configuration["KEYSTEAD_CLIENT_SECRET"]!;
+});</code></pre>
+                <p class="field__hint">
+                    The SDK arrives in M7. Keep the secret in an environment variable, never in
+                    <code>appsettings.json</code>.
+                </p>
+            </div>
+
+            <div class="field">
+                <p class="field__label">Environment variables</p>
+                <pre class="secret-value"><code>KEYSTEAD_ENDPOINT=@endpoint
+KEYSTEAD_CLIENT_ID=@Model.IssuedClientId
+KEYSTEAD_CLIENT_SECRET=@secret</code></pre>
+            </div>
+
+            <div class="field">
+                <p class="field__label">Fetch a token directly</p>
+                <pre class="secret-value"><code>curl -X POST @endpoint/api/v1/token \
+  -d grant_type=client_credentials \
+  -d client_id=@Model.IssuedClientId \
+  -d client_secret=$KEYSTEAD_CLIENT_SECRET</code></pre>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="card" style="margin-bottom: var(--space-8);">
+    <div class="card__header">
+        <h2>@Model.Items.Count identit@(Model.Items.Count == 1 ? "y" : "ies")</h2>
+    </div>
+
+    @if (Model.Items.Count == 0)
+    {
+        <div class="empty">
+            <div class="empty__art" aria-hidden="true">
+                <svg width="56" height="56" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="8" y="16" width="48" height="32" rx="5" />
+                    <path d="M8 28h48M18 38h10" />
+                </svg>
+            </div>
+            <p class="empty__title">No service identities</p>
+            <p class="empty__body">
+                @if (Model.CanManage)
+                {
+                    <text>Create one below so an application can fetch secrets at runtime.</text>
+                }
+                else
+                {
+                    <text>An administrator can create one for your application.</text>
+                }
+            </p>
+        </div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <caption class="visually-hidden">Service identities in this workspace</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col">Client ID</th>
+                        <th scope="col">Can reach</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Last used</th>
+                        <th scope="col"><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var identity in Model.Items)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@identity.Name</strong>
+                                @if (identity.IpAllowlist.Count > 0)
+                                {
+                                    <div class="field__hint">
+                                        From @string.Join(", ", identity.IpAllowlist)
+                                    </div>
+                                }
+                            </td>
+                            <td><code class="field__hint">@identity.ClientId</code></td>
+                            <td>
+                                @if (identity.Scopes.Count == 0)
+                                {
+                                    <span class="badge badge--warning">No vaults</span>
+                                }
+                                else
+                                {
+                                    @foreach (var scope in identity.Scopes)
+                                    {
+                                        <span class="badge @(scope.Permission == Keystead.Domain.Vaults.VaultPermission.Write ? "badge--success" : "badge--neutral")">
+                                            @scope.VaultName
+                                            (@(scope.Permission == Keystead.Domain.Vaults.VaultPermission.Write ? "write" : "read"))
+                                        </span>
+                                    }
+                                }
+                            </td>
+                            <td>
+                                @if (!identity.IsActive)
+                                {
+                                    <span class="badge badge--danger">Revoked</span>
+                                }
+                                else if (identity.ExpiresUtc is { } expires && expires <= Model.Now)
+                                {
+                                    <span class="badge badge--danger">Expired</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge--success">
+                                        <span class="badge__dot" aria-hidden="true"></span> Active
+                                    </span>
+                                }
+
+                                @if (identity.HasPendingRotation)
+                                {
+                                    <span class="badge badge--info" title="The previous secret still works until this passes.">
+                                        Rotating
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                @if (identity.LastUsedUtc is { } used)
+                                {
+                                    <time datetime="@used.ToString("O")">
+                                        @used.ToString("d MMM, HH:mm")
+                                    </time>
+                                }
+                                else
+                                {
+                                    <span class="field__hint">Never</span>
+                                }
+                            </td>
+                            <td style="text-align: right;">
+                                @if (Model.CanManage && identity.IsActive)
+                                {
+                                    <div style="display: flex; gap: var(--space-2); justify-content: flex-end;">
+                                        <form method="post" asp-page-handler="Rotate">
+                                            <input type="hidden" name="identityId" value="@identity.Id" />
+                                            <input type="hidden" name="overlapHours" value="24" />
+                                            <button class="btn btn--ghost btn--sm" type="submit">
+                                                Rotate secret
+                                            </button>
+                                        </form>
+
+                                        <form method="post" asp-page-handler="Revoke">
+                                            <input type="hidden" name="identityId" value="@identity.Id" />
+                                            <button class="btn btn--ghost btn--sm" type="submit">
+                                                Revoke
+                                            </button>
+                                        </form>
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@if (Model.CanManage)
+{
+    <div class="card">
+        <div class="card__header">
+            <h2>Create a service identity</h2>
+        </div>
+        <div class="card__body">
+            @if (Model.Vaults.Count == 0)
+            {
+                <p class="field__hint">
+                    Create a vault first. An identity with no vaults can authenticate but
+                    cannot read anything.
+                </p>
+            }
+            else
+            {
+                <form method="post" asp-page-handler="Create">
+                    <div class="field">
+                        <label class="field__label" for="i-name">Name</label>
+                        <input class="input" id="i-name" required asp-for="Input.Name"
+                               placeholder="billing-api-prod" />
+                        <p class="field__hint">
+                            Name it after the application and environment that will use it.
+                        </p>
+                        <span class="field__error" asp-validation-for="Input.Name"></span>
+                    </div>
+
+                    <div class="field">
+                        <p class="field__label">Vaults it may reach</p>
+                        @foreach (var vault in Model.Vaults)
+                        {
+                            <label class="field__label" style="font-weight: 400;">
+                                <input type="checkbox" name="Input.ScopedVaultIds" value="@vault.Id" />
+                                @vault.Name
+                            </label>
+                        }
+                        <p class="field__hint">
+                            Grant only what the application needs. A leaked secret reaches
+                            exactly these vaults and nothing else.
+                        </p>
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="i-write">
+                            <input id="i-write" type="checkbox" asp-for="Input.GrantWrite" />
+                            Allow writing
+                        </label>
+                        <p class="field__hint">
+                            Most applications only read. Leave this off unless the application
+                            needs to store secrets.
+                        </p>
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="i-ips">Restrict to addresses</label>
+                        <input class="input input--mono" id="i-ips" asp-for="Input.IpAllowlist"
+                               placeholder="203.0.113.0/24, 2001:db8::/32" />
+                        <p class="field__hint">
+                            Optional. Comma separated addresses or CIDR ranges. Leave blank to
+                            allow any address. Behind a reverse proxy this only works if the
+                            proxy is on the trusted list.
+                        </p>
+                    </div>
+
+                    <button class="btn btn--primary" type="submit">Create identity</button>
+                </form>
+            }
+        </div>
+    </div>
+}

@@ -68,6 +68,9 @@ public sealed class KeysteadDbContext : DbContext
     /// <summary>Master key generations.</summary>
     public DbSet<MasterKeyVersion> MasterKeyVersions => Set<MasterKeyVersion>();
 
+    /// <summary>Token signing key pairs.</summary>
+    public DbSet<SigningKey> SigningKeys => Set<SigningKey>();
+
     /// <summary>
     /// Applies the UTC-ticks conversion to every timestamp in the model.
     /// </summary>

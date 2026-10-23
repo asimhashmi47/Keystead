@@ -6,12 +6,13 @@ keys, connection strings, certificates and tokens, which applications fetch at r
 Built on .NET 10, ASP.NET Core Razor Pages, EF Core and SQLite. Concept-comparable to Azure
 Key Vault, scoped to something a team can actually run on one box.
 
-> **Status: in development.** Milestones M1 to M4 are complete and committed. Keystead now
-> does its actual job end to end: you can set it up, sign in with a second factor, create a
-> vault, store a secret, reveal it after confirming your identity, roll it back, and read a
-> tamper-evident log of all of it. The machine API, SDK and CLI (M5 onward) are not yet built,
-> so applications cannot fetch secrets at runtime yet. See [Current state](#current-state) for
-> an honest breakdown, and [PLAN.md](PLAN.md) for the full plan.
+> **Status: in development.** Milestones M1 to M5 are complete and committed. Keystead is now
+> usable for its stated purpose: a team can set it up, sign in with a second factor, store
+> secrets, and an application can fetch them at runtime over the machine API with a scoped,
+> short-lived token. The .NET SDK, the CLI and Docker packaging (M7) are not built yet, so
+> applications currently call the API directly rather than through
+> `builder.Configuration.AddKeystead(...)`. See [Current state](#current-state) for an honest
+> breakdown, and [PLAN.md](PLAN.md) for the full plan.
 
 ---
 
@@ -63,15 +64,21 @@ an endpoint that forgets to declare a policy fails closed rather than open.
 | Reveal | Masked by default, never in the page markup, fetched by `POST` with an antiforgery token, step-up required, `no-store`, auto-hides after 30 seconds |
 | Rollback | Re-seals the old value as a new version rather than reviving the old row, so history stays append-only and the rollback is itself auditable |
 | Audit viewer | Filterable log with a chain-verification badge and a CSV export that is guarded against spreadsheet formula injection |
+| Service identities | `ksd_live_…` secrets with a checksum, stored as SHA-256, shown once; rotation with an overlap window; per-identity IP allowlist; revocation that bites on the next call |
+| Machine API | OAuth2 client credentials to a short-lived ES256 token with a rotatable signing key; scoped per vault; RFC 7807 problem documents; ETag revalidation; `no-store` throughout |
 
-**297 unit tests, all passing.** The failure cases carry the weight: tamper on ciphertext, nonce
+**376 unit tests, all passing.** The failure cases carry the weight: tamper on ciphertext, nonce
 and tag; wrong key; ciphertext moved to another workspace, vault, secret or version; purpose
 confusion; nonce uniqueness across 200 seals; malformed and weaker-parameter password digests;
 pepper mismatch; audit chain edit, rehash, delete and reorder detection; the full role matrix
 checked exhaustively; TOTP replay and seed relocation; cross-tenant access attempted from six
 directions and refused each time; and the full three-tier envelope with a value relocated to
 another workspace, vault, secret and version, a data key spliced in from a different version,
-and a value presented as its own wrapped key.
+and a value presented as its own wrapped key. The token suite performs the classic JWT attacks
+and asserts each is refused: `alg: none`, HS256 confusion (signing with the public key as an
+HMAC secret), a token signed by an attacker's key claiming the server's key id, a tampered
+signature, a token with no key id, an expired token, and a token held by an identity that has
+since been revoked.
 
 **Verified against the running application**, not just in tests: the strict nonce CSP and full
 header set; a fresh nonce per request; `/` and `/security` redirecting unauthenticated callers;
@@ -80,28 +87,31 @@ than let in; identical error pages for a wrong password and an unknown account; 
 rejecting both a missing and a forged token with 400; the rate limiter returning 429; and the
 audit chain linking correctly in the live database.
 
-`scripts/smoke-flow.py` drives the running application through the whole flow and asserts 41
-properties, including that the secret value appears in no list page, no detail page, no `GET`
-response, no audit row and no CSV export. Run it against a development instance with
+`scripts/smoke-flow.py` drives the running application through the whole flow and asserts 81
+properties, including that the secret value appears in no list page, no detail page, no browser
+`GET`, no API list response, no audit row, no CSV export; that a revoked identity cannot use a
+token it already holds; and that the client secret never appears again after the one response
+that issues it. Run it against a development instance with
 `python scripts/smoke-flow.py https://localhost:5001`. M8 ports these assertions into
 `Keystead.IntegrationTests` and `Keystead.SecurityTests`.
 
 ### Not yet built
 
-Everything from milestone M5 onward in [PLAN.md](PLAN.md):
-- **M5** — service identities, `/api/v1/token`, the machine API, scope enforcement
+Everything from milestone M6 onward in [PLAN.md](PLAN.md):
 - **M6** — the remaining pages, command palette, accessibility pass
 - **M7** — client SDK (`AddKeystead()`), CLI commands, Docker, reverse proxy config
 - **M8** — integration and security test suites, STRIDE threat model, SECURITY.md, DEPLOYMENT.md
 
 The CLI currently reports its version and prints the command surface it will gain in M7.
 
-Known gaps within what is built: there is no workspace switcher yet (a user with one workspace
-cannot tell), vault access grants are seeded directly rather than managed through a members
-page (M6), the command palette is a Ctrl+K shortcut that focuses search rather than a full
-palette (M6), and key rotation is modelled and stored but has no background job to run it
-(M5). Revealing a secret requires JavaScript; every other action, including storing a value
-and rolling back, works without it.
+Known gaps within what is built: there is no OpenAPI document for the API yet (M7), no JWKS
+endpoint (the public keys are stored and usable but not published), no workspace switcher,
+vault grants for *users* are seeded directly rather than managed through a members page (M6 —
+grants for service identities are managed on the identities page), the command palette is a
+Ctrl+K shortcut that focuses search rather than a full palette (M6), and master-key and vault
+KEK rotation are modelled and stored but have no background job to run them. Token signing key
+rotation is implemented and tested. Revealing a secret in the browser requires JavaScript;
+every other action works without it.
 
 ---
 

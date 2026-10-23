@@ -99,6 +99,12 @@ def request(path, data=None, headers=None, method=None):
         return error.code, error.read().decode("utf-8", "replace"), dict(error.headers)
 
 
+def uuid_like():
+    """A well-formed but unused vault id, for the cross-vault refusal check."""
+    import uuid
+    return uuid.uuid4()
+
+
 def csrf(html):
     match = re.search(r'name="__keystead-csrf"[^>]*value="([^"]+)"', html)
     return match.group(1) if match else None
@@ -296,6 +302,160 @@ check("AUDIT LOG DOES NOT CONTAIN THE VALUE", SECRET_VALUE not in html)
 status, csvbody, headers = request("/audit?handler=Export")
 check("CSV export works", status == 200 and "text/csv" in headers.get("Content-Type", ""))
 check("CSV does not contain the value", SECRET_VALUE not in csvbody)
+
+
+print("\n=== 11. Service identity ===")
+status, html, _ = request("/identities")
+check("identities page renders", status == 200, f"status {status}")
+token = csrf(html)
+
+vault_id = re.search(r'name="Input.ScopedVaultIds" value="([0-9a-f-]{36})"', html).group(1)
+
+status, html, _ = request("/identities?handler=Create", {
+    "__keystead-csrf": token,
+    "Input.Name": "smoke-runner",
+    "Input.ScopedVaultIds": vault_id,
+    "Input.GrantWrite": "false",
+})
+check("identity created", "Copy this now" in html, f"status {status}")
+
+client_id = re.search(r'id="issued-client-id">(ksid_[A-Z0-9]+)<', html).group(1)
+client_secret = re.search(r'id="issued-secret">(ksd_live_[A-Z0-9]+_[A-Z0-9]{6})<', html).group(1)
+check("client id issued", client_id.startswith("ksid_"))
+check("client secret issued with prefix and checksum", client_secret.startswith("ksd_live_"))
+check("snippets show the real endpoint", BASE.split("//")[1] in html)
+
+status, html, _ = request("/identities")
+check("secret is NOT shown again on reload", client_secret not in html)
+
+print("\n=== 12. Machine API: token endpoint ===")
+machine = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx), NoRedirect())
+
+
+def api(path, data=None, headers=None, method=None):
+    """Calls the API with no cookie jar, the way a real application would."""
+    body = urllib.parse.urlencode(data).encode() if isinstance(data, dict) else data
+    req = urllib.request.Request(BASE + path, data=body, method=method)
+    for key, value in (headers or {}).items():
+        req.add_header(key, value)
+    try:
+        with machine.open(req) as response:
+            return response.status, response.read().decode("utf-8", "replace"), dict(response.headers)
+    except urllib.error.HTTPError as error:
+        return error.code, error.read().decode("utf-8", "replace"), dict(error.headers)
+
+
+status, body, headers = api("/api/v1/token", {
+    "grant_type": "client_credentials",
+    "client_id": client_id,
+    "client_secret": client_secret,
+})
+check("token issued", status == 200, f"status {status} {body[:200]}")
+tok = json.loads(body) if status == 200 else {}
+check("token is a bearer token", tok.get("token_type") == "Bearer")
+check("token response is no-store", "no-store" in headers.get("Cache-Control", ""))
+check("token carries the vault scope", f"vault:{vault_id}:read" in tok.get("scope", ""))
+check("token expires in under an hour", 0 < tok.get("expires_in", 0) <= 3600)
+
+access = tok.get("access_token", "")
+alg = json.loads(base64.urlsafe_b64decode(access.split(".")[0] + "=="))
+check("token is signed with ES256", alg.get("alg") == "ES256")
+check("token names its signing key", bool(alg.get("kid")))
+
+status, body, _ = api("/api/v1/token", {
+    "grant_type": "client_credentials",
+    "client_id": client_id,
+    "client_secret": "ksd_live_WRONGWRONGWRONG_ABCDEF",
+})
+check("wrong secret is refused with 401", status == 401, f"status {status}")
+check("failure is a problem document", "invalid_client" in body)
+
+status, body, _ = api("/api/v1/token", {
+    "grant_type": "password",
+    "client_id": client_id,
+    "client_secret": client_secret,
+})
+check("unsupported grant type is refused", status == 400, f"status {status}")
+
+print("\n=== 13. Machine API: reading secrets ===")
+auth = {"Authorization": "Bearer " + access}
+
+status, body, headers = api("/api/v1/vaults/" + vault_id + "/secrets", headers=auth)
+check("list secrets works", status == 200, f"status {status} {body[:200]}")
+check("LIST RESPONSE DOES NOT CONTAIN THE VALUE", SECRET_VALUE not in body)
+check("list response is no-store", "no-store" in headers.get("Cache-Control", ""))
+
+name = urllib.parse.quote("ConnectionStrings--Default")
+path = "/api/v1/vaults/" + vault_id + "/secrets/" + name + "?environment=prod"
+
+status, body, headers = api(path, headers=auth)
+check("get secret returns the value",
+      status == 200 and json.loads(body).get("value") == SECRET_VALUE,
+      f"status {status} {body[:200]}")
+check("get secret is no-store", "no-store" in headers.get("Cache-Control", ""))
+etag = headers.get("ETag", "")
+check("get secret returns an ETag", etag.startswith('"'))
+
+status, body, _ = api(path, headers={**auth, "If-None-Match": etag})
+check("matching ETag returns 304", status == 304, f"status {status}")
+
+versions_path = "/api/v1/vaults/" + vault_id + "/secrets/" + name + "/versions?environment=prod"
+status, body, _ = api(versions_path, headers=auth)
+check("list versions works", status == 200 and len(json.loads(body)) == 3, f"status {status}")
+check("VERSIONS RESPONSE DOES NOT CONTAIN THE VALUE", SECRET_VALUE not in body)
+
+print("\n=== 14. Machine API: authentication and authorization ===")
+status, body, headers = api("/api/v1/vaults/" + vault_id + "/secrets")
+check("no token is refused with 401", status == 401, f"status {status}")
+check("401 names the bearer scheme", "Bearer" in headers.get("WWW-Authenticate", ""))
+
+status, _, _ = api("/api/v1/vaults/" + vault_id + "/secrets",
+                   headers={"Authorization": "Bearer not.a.token"})
+check("a rubbish token is refused", status == 401, f"status {status}")
+
+tampered = access[:-4] + ("AAAA" if not access.endswith("AAAA") else "BBBB")
+status, _, _ = api("/api/v1/vaults/" + vault_id + "/secrets",
+                   headers={"Authorization": "Bearer " + tampered})
+check("a tampered signature is refused", status == 401, f"status {status}")
+
+status, body, _ = api(
+    path,
+    data=json.dumps({"value": "written-by-a-read-only-identity"}).encode(),
+    headers={**auth, "Content-Type": "application/json"},
+    method="PUT")
+check("a read-only identity cannot write", status == 403, f"status {status} {body[:160]}")
+
+status, _, _ = api("/api/v1/vaults/" + str(uuid_like()) + "/secrets", headers=auth)
+check("a vault outside the grant is 404", status == 404, f"status {status}")
+
+print("\n=== 15. Revocation takes effect immediately ===")
+status, html, _ = request("/identities")
+token = csrf(html)
+identity_id = re.search(r'name="identityId" value="([0-9a-f-]{36})"', html).group(1)
+request("/identities?handler=Revoke", {
+    "__keystead-csrf": token,
+    "identityId": identity_id,
+})
+
+status, _, _ = api("/api/v1/vaults/" + vault_id + "/secrets", headers=auth)
+check("REVOKED IDENTITY CANNOT USE ITS EXISTING TOKEN", status == 401, f"status {status}")
+
+status, _, _ = api("/api/v1/token", {
+    "grant_type": "client_credentials",
+    "client_id": client_id,
+    "client_secret": client_secret,
+})
+check("revoked identity cannot get a new token", status == 401, f"status {status}")
+
+print("\n=== 16. Audit covers the machine API ===")
+status, html, _ = request("/audit")
+check("token issuance is recorded", "TokenIssued" in html)
+check("token denial is recorded", "TokenDenied" in html)
+check("identity creation is recorded", "ServiceIdentityCreated" in html)
+check("identity revocation is recorded", "ServiceIdentityRevoked" in html)
+check("chain still verifies after API traffic", "Chain verified" in html)
+check("AUDIT STILL DOES NOT CONTAIN THE VALUE", SECRET_VALUE not in html)
+check("AUDIT DOES NOT CONTAIN THE CLIENT SECRET", client_secret not in html)
 
 print(f"\n{'=' * 60}")
 print(f"{checks - len(failures)}/{checks} checks passed")

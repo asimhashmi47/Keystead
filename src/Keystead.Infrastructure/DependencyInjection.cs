@@ -6,6 +6,7 @@ using Keystead.Application.Authorization;
 using Keystead.Application.Cryptography;
 using Keystead.Application.Identity;
 using Keystead.Application.Secrets;
+using Keystead.Application.Tokens;
 using Keystead.Application.Vaults;
 using Keystead.Application.Workspaces;
 using Keystead.Infrastructure.Auditing;
@@ -14,6 +15,7 @@ using Keystead.Infrastructure.Cryptography;
 using Keystead.Infrastructure.Identity;
 using Keystead.Infrastructure.Persistence;
 using Keystead.Infrastructure.Secrets;
+using Keystead.Infrastructure.Tokens;
 using Keystead.Infrastructure.Vaults;
 using Keystead.Infrastructure.Workspaces;
 using Keystead.Infrastructure.Time;
@@ -63,6 +65,17 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<TokenOptions>()
+            .Bind(configuration.GetSection(TokenOptions.SectionName))
+            .ValidateDataAnnotations()
+
+            // A retired key must keep verifying for at least as long as a token can live, or
+            // rotation would reject tokens that are still inside their validity window.
+            .Validate(
+                options => options.RetiredKeyGrace >= options.Lifetime,
+                "Keystead:Tokens:RetiredKeyGrace must be at least as long as Lifetime, otherwise rotating the signing key invalidates tokens that have not expired yet.")
+            .ValidateOnStart();
+
         services.AddOptions<SessionOptions>()
             .Bind(configuration.GetSection(SessionOptions.SectionName))
             .ValidateDataAnnotations()
@@ -94,6 +107,9 @@ public static class DependencyInjection
         services.AddScoped<IVaultService, VaultService>();
         services.AddScoped<ISecretService, SecretService>();
         services.AddScoped<ICurrentWorkspace, CurrentWorkspace>();
+        services.AddScoped<SigningKeyStore>();
+        services.AddScoped<ITokenIssuer, TokenIssuer>();
+        services.AddScoped<IServiceIdentityService, ServiceIdentityService>();
 
         services.AddDbContext<KeysteadDbContext>((sp, builder) =>
         {

@@ -165,3 +165,40 @@ internal sealed class AuditEntryConfiguration : IEntityTypeConfiguration<AuditEn
         builder.HasIndex(e => new { e.WorkspaceId, e.Action });
     }
 }
+
+internal sealed class SigningKeyConfiguration : IEntityTypeConfiguration<SigningKey>
+{
+    public void Configure(EntityTypeBuilder<SigningKey> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.ToTable("signing_keys");
+        builder.HasKey(k => k.Id);
+
+        builder.Property(k => k.Kid).HasMaxLength(64).IsRequired();
+        builder.HasIndex(k => k.Kid).IsUnique();
+
+        // A sealed PKCS#8 P-256 private key: roughly 140 bytes of ciphertext plus its header.
+        builder.Property(k => k.PrivateKeyCiphertext).HasMaxLength(512).IsRequired();
+
+        builder.Property(k => k.PrivateKeyNonce)
+            .HasMaxLength(SealedBlob.NonceLength)
+            .IsFixedLength()
+            .IsRequired();
+
+        builder.Property(k => k.PrivateKeyTag)
+            .HasMaxLength(SealedBlob.TagLength)
+            .IsFixedLength()
+            .IsRequired();
+
+        builder.Property(k => k.MasterKeyVersion).IsRequired();
+
+        // Stored in the clear on purpose: it is not secret, and keeping it readable means
+        // verification never needs the master key.
+        builder.Property(k => k.PublicKey).HasMaxLength(256).IsRequired();
+
+        builder.Property(k => k.CreatedUtc).IsRequired();
+
+        builder.Ignore(k => k.IsActive);
+    }
+}

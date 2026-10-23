@@ -132,7 +132,7 @@ Each milestone ends with: `dotnet build` **zero warnings**, all tests green, the
 | **M2** (done) | Crypto core, master key providers, setup wizard | Round-trip, tamper, wrong-key and rotation tests pass |
 | **M3** (done) | Identity, Argon2id, TOTP MFA, recovery codes, sessions, RBAC, step-up | Auth, lockout and RBAC matrix tests pass |
 | **M4** (done) | Vaults, secrets, versions, soft delete/recover/purge, audit hash chain | Rollback and chain verification tests pass |
-| **M5** | Service identities, `/api/v1/token`, machine API, scopes, rate limiting | Scope, IP allowlist and 429 tests pass |
+| **M5** (done) | Service identities, `/api/v1/token`, machine API, scopes, rate limiting | Scope, IP allowlist and 429 tests pass |
 | **M6** | Full UI: all pages, command palette, empty states, a11y pass | WCAG 2.2 AA contrast, keyboard nav, no layout shift |
 | **M7** | Client SDK, CLI, samples, Docker, reverse proxy config | `AddKeystead()` sample runs; `keystead run --` injects env |
 | **M8** | Security test suite, STRIDE doc, README/SECURITY/DEPLOYMENT, requirement traceability | Every spec line maps to a file or test |

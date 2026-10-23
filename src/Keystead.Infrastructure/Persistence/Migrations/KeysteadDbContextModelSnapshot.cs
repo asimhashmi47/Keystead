@@ -163,6 +163,56 @@ namespace Keystead.Infrastructure.Persistence.Migrations
                     b.ToTable("service_identities", (string)null);
                 });
 
+            modelBuilder.Entity("Keystead.Domain.Identity.SigningKey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kid")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MasterKeyVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("PrivateKeyCiphertext")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("BLOB");
+
+                    b.Property<byte[]>("PrivateKeyNonce")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("BLOB")
+                        .IsFixedLength();
+
+                    b.Property<byte[]>("PrivateKeyTag")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("BLOB")
+                        .IsFixedLength();
+
+                    b.Property<byte[]>("PublicKey")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("BLOB");
+
+                    b.Property<long?>("RetiredUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Kid")
+                        .IsUnique();
+
+                    b.ToTable("signing_keys", (string)null);
+                });
+
             modelBuilder.Entity("Keystead.Domain.Identity.User", b =>
                 {
                     b.Property<Guid>("Id")

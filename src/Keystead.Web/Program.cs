@@ -4,6 +4,7 @@ using Keystead.Infrastructure;
 using Keystead.Infrastructure.Cryptography;
 using Keystead.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Keystead.Web.Api;
 using Keystead.Web.Security;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -389,6 +390,8 @@ public static class Program
 
         // Readiness: can the process serve traffic. Also intentionally terse.
         app.MapHealthChecks("/readyz").AllowAnonymous();
+
+        app.MapMachineApi();
 
         MapCspReportEndpoint(app);
     }
