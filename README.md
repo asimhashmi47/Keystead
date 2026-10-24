@@ -1,18 +1,108 @@
 # Keystead
 
-A self-hostable secrets manager for developers and small teams: a central place to keep API
-keys, connection strings, certificates and tokens, which applications fetch at runtime by name.
+A self-hostable secrets manager for developers and small teams. A central place to keep API
+keys, connection strings, certificates and tokens — and a way for applications to fetch them at
+runtime by name, so nobody has to paste a connection string into a chat window again.
 
-Built on .NET 10, ASP.NET Core Razor Pages, EF Core and SQLite. Concept-comparable to Azure
-Key Vault, scoped to something a team can actually run on one box.
+Built on .NET 10, ASP.NET Core Razor Pages, EF Core and SQLite. Concept-comparable to Azure Key
+Vault, scoped to something a small team can actually run on one box.
 
-> **Status: in development.** All eight milestones are complete and committed. Keystead is now
-> usable for its stated purpose: a team can set it up, sign in with a second factor, store
-> secrets, and an application can fetch them at runtime over the machine API with a scoped,
-> short-lived token. The .NET SDK, the CLI and Docker packaging (M7) are not built yet, so
-> applications currently call the API directly rather than through
-> `builder.Configuration.AddKeystead(...)`. See [Current state](#current-state) for an honest
-> breakdown, and [PLAN.md](PLAN.md) for the full plan.
+![The dashboard](images/03-dashboard.png)
+
+---
+
+## What it does
+
+**For people.** Sign in with a password and a second factor, group secrets into vaults, store
+and version values, and reveal one when you need it — masked by default, behind a re-confirmed
+identity, recorded in the audit log, hidden again after thirty seconds.
+
+**For applications.** A service identity authenticates with client credentials, receives a
+short-lived ES256 token scoped to the vaults it was granted, and reads secrets by name. The
+.NET SDK makes that a single line in `Program.cs`; the CLI injects secrets into a child process
+without them ever touching a file.
+
+```csharp
+builder.Configuration.AddKeystead(options =>
+{
+    options.Endpoint = new Uri("https://keystead.internal");
+    options.ClientId = "orders-api-prod";
+    options.ClientSecret = builder.Configuration["KEYSTEAD_CLIENT_SECRET"]!;
+});
+
+// A secret stored as ConnectionStrings--Default is read the way any other setting is.
+var connection = builder.Configuration.GetConnectionString("Default");
+```
+
+```bash
+keystead run --vault production -- dotnet MyApp.dll
+```
+
+---
+
+## How it looks
+
+Every screenshot is of the running application, captured by
+[`scripts/capture-screenshots.py`](scripts/capture-screenshots.py) against the workspace that
+[`scripts/seed-workspace.py`](scripts/seed-workspace.py) creates. Nothing is mocked up.
+
+### Signing in
+
+Two factors, always. An account with administrative rights cannot complete sign-in until it has
+enrolled a second factor — not a prompt it can dismiss.
+
+| | |
+|---|---|
+| ![Sign in](images/01-sign-in.png) | ![Two-factor code](images/02-two-factor.png) |
+
+### Vaults and secrets
+
+A vault groups secrets that belong together and holds its own encryption key, so access and key
+rotation are scoped to it rather than to the whole workspace.
+
+![Vaults](images/04-vaults.png)
+
+![A vault](images/05-vault.png)
+
+### Revealing a value
+
+The value is never in the page markup. Revealing it is a `POST` with an antiforgery token
+behind a re-confirmed identity; the response carries `Cache-Control: no-store`, the read is
+written to the audit log, and the value hides itself again after thirty seconds.
+
+| Masked by default | After confirming identity |
+|---|---|
+| ![A secret, masked](images/06-secret-hidden.png) | ![A secret, revealed](images/06-secret-revealed.png) |
+
+Storing a new value appends a version rather than overwriting one. Rolling back re-seals the
+old value as a *new* version, so history stays append-only and the rollback is itself auditable
+and reversible.
+
+### The audit log
+
+Every read, write, sign-in, permission change and refusal, in order. Each entry commits to the
+one before it over a length-prefixed canonical encoding, so an entry cannot be altered,
+inserted or removed without verification failing — and the page verifies the chain on load.
+
+![The audit log](images/07-audit.png)
+
+### Members and service identities
+
+People get a role and, optionally, grants on individual vaults. Applications get their own
+identity with its own credentials, its own vault scope, an optional IP allowlist, and rotation
+with an overlap window so a deploy does not have to be atomic.
+
+![Members](images/08-members.png)
+
+![Service identities](images/09-identities.png)
+
+### Security centre and command palette
+
+Where you are signed in, from what, and how to end any of it. And `Ctrl`+`K` from anywhere.
+
+| | |
+|---|---|
+| ![Security centre](images/10-security.png) | ![Command palette](images/11-palette.png) |
 
 ---
 
@@ -35,17 +125,18 @@ for GCM, so every seal draws 96 fresh random bits.
 
 **The audit log is a hash chain.** Each entry commits to the one before it, over a
 length-prefixed canonical encoding. Length prefixes rather than delimiters, so two different
-entries cannot serialise to identical bytes. An insider with write access can still rewrite
-rows; they cannot do it without verification failing.
+entries cannot serialise to identical bytes. An insider with database write access can still
+rewrite rows; they cannot do it without verification failing.
 
 **Deny by default.** The authorization fallback policy requires an authenticated principal, so
 an endpoint that forgets to declare a policy fails closed rather than open.
 
+**Revocation bites immediately.** Token validation re-reads the service identity on every call,
+so revoking one takes effect on the next request rather than when its token happens to expire.
+
 ---
 
-## Current state
-
-### Built and verified
+## What is here
 
 | Area | What exists |
 |---|---|
@@ -54,8 +145,8 @@ an endpoint that forgets to declare a policy fails closed rather than open.
 | Passwords | Argon2id at 64 MiB / t=3 / p=1, per-user salt, optional pepper, PHC-encoded digests, rehash-on-upgrade |
 | Audit | Tamper-evident hash chain with canonical encoding and verification |
 | Persistence | Full 14-table schema, EF migration applied and checked, 36 indexes, SQLite pragmas (WAL, `foreign_keys`, busy timeout) per connection |
-| Web hardening | Strict nonce CSP from `default-src 'none'`; full header set; `no-store`; no `Server` banner; antiforgery global; rate-limit policies; Kestrel limits |
-| UI foundation | Design system in plain CSS with semantic tokens; app shell with persistent sidebar; progressive-enhancement JS module, no inline script |
+| Web hardening | Strict nonce CSP from `default-src 'none'`; full header set; `no-store`; no `Server` banner; antiforgery global; configurable rate-limit policies; Kestrel limits |
+| Interface | Design system in plain CSS with semantic tokens; self-hosted variable font; persistent sidebar on every authenticated page; progressive-enhancement JS modules, no inline script, no inline style, no CDN |
 | Identity | Argon2id sign-in with decoy-hash enumeration resistance; progressive lockout; TOTP with single-use replay guard; 10 single-use recovery codes; server-validated sessions with revocation |
 | RBAC | Role/capability matrix as pure domain logic; vault grants with a role ceiling; workspace scoping and authorization checked separately on every call; step-up re-authentication |
 | Setup | First-run wizard that closes permanently once an account exists; recovery kit with the master key fingerprint shown once |
@@ -63,62 +154,76 @@ an endpoint that forgets to declare a policy fails closed rather than open.
 | Secrets | Append-only versions, enable/disable, soft delete and recover, expiry and rotation reminders, tags, environment scoping |
 | Reveal | Masked by default, never in the page markup, fetched by `POST` with an antiforgery token, step-up required, `no-store`, auto-hides after 30 seconds |
 | Rollback | Re-seals the old value as a new version rather than reviving the old row, so history stays append-only and the rollback is itself auditable |
-| Audit viewer | Filterable log with a chain-verification badge and a CSV export that is guarded against spreadsheet formula injection |
-| Service identities | `ksd_live_…` secrets with a checksum, stored as SHA-256, shown once; rotation with an overlap window; per-identity IP allowlist; revocation that bites on the next call |
+| Audit viewer | Filterable log with a chain-verification badge and a CSV export guarded against spreadsheet formula injection |
+| Service identities | Client secrets with a checksum, stored as SHA-256, shown once; rotation with an overlap window; per-identity IP allowlist; revocation that bites on the next call |
 | Machine API | OAuth2 client credentials to a short-lived ES256 token with a rotatable signing key; scoped per vault; RFC 7807 problem documents; ETag revalidation; `no-store` throughout |
 | Members | Roles and per-user vault grants, with the last-owner rule and no self-promotion to owner; new accounts get a one-time password shown once |
 | Profile | Change your own password (revoking every other session) and replace a lost authenticator using a recovery code |
-| Search and palette | Name search across reachable vaults and secrets, and a Ctrl+K command palette built on `<dialog>` so focus trapping and Escape come from the platform |
+| Search and palette | Name search across reachable vaults and secrets, and a `Ctrl`+`K` command palette built on `<dialog>` so focus trapping and Escape come from the platform |
 | SDK | `builder.Configuration.AddKeystead(...)` with token caching, retry, optional polling reload, and `--`/`__` to `:` key mapping, so application code never mentions Keystead |
 | CLI | `keystead secret list/get/set`, `env`, and `run -- <command>` which injects secrets into a child process and propagates its exit code |
 | Packaging | Chiselled non-root image, read-only root filesystem, all capabilities dropped, mounted master key, plus Caddy and Nginx reverse proxy configs |
 | CI | Build with warnings as errors, `dotnet format` gate, coverage report, CodeQL at security-and-quality, CycloneDX SBOM, Dependabot, and a container build that asserts a non-root user |
-| Verification | Response headers, CSP nonce uniqueness, cookie flags and deny-by-default asserted against the real pipeline; source greps enforcing the absolutes in CLAUDE.md; a log-capture test proving a secret reaches no sink |
 
-**560 tests, all passing** (460 unit, 25 integration, 75 security). The failure cases carry the weight: tamper on ciphertext, nonce
-and tag; wrong key; ciphertext moved to another workspace, vault, secret or version; purpose
-confusion; nonce uniqueness across 200 seals; malformed and weaker-parameter password digests;
-pepper mismatch; audit chain edit, rehash, delete and reorder detection; the full role matrix
-checked exhaustively; TOTP replay and seed relocation; cross-tenant access attempted from six
-directions and refused each time; and the full three-tier envelope with a value relocated to
-another workspace, vault, secret and version, a data key spliced in from a different version,
-and a value presented as its own wrapped key. The token suite performs the classic JWT attacks
-and asserts each is refused: `alg: none`, HS256 confusion (signing with the public key as an
-HMAC secret), a token signed by an attacker's key claiming the server's key id, a tampered
-signature, a token with no key id, an expired token, and a token held by an identity that has
-since been revoked.
+---
 
-**Verified against the running application**, not just in tests: the strict nonce CSP and full
-header set; a fresh nonce per request; `/` and `/security` redirecting unauthenticated callers;
-the first-run wizard closing itself after use; an Owner being forced into MFA enrolment rather
-than let in; identical error pages for a wrong password and an unknown account; antiforgery
-rejecting both a missing and a forged token with 400; the rate limiter returning 429; and the
-audit chain linking correctly in the live database.
+## How it is verified
 
-`scripts/smoke-flow.py` drives the running application through the whole flow and asserts 81
-properties, including that the secret value appears in no list page, no detail page, no browser
-`GET`, no API list response, no audit row, no CSV export; that a revoked identity cannot use a
-token it already holds; and that the client secret never appears again after the one response
-that issues it. Run it against a development instance with
-`python scripts/smoke-flow.py https://localhost:5001`.
+**565 tests, all passing** — 461 unit, 25 integration, 79 security.
 
-`scripts/verify-sdk-cli.py` adds 29 more against the SDK, the CLI and the OpenAPI document,
-including that `keystead run` injects a secret into a child process, that `keystead env` quotes
-values so a shell cannot re-interpret them, and that a name stored as
-`ConnectionStrings--Default` is readable as `ConnectionStrings:Default`. M8 ports these
-assertions into `Keystead.IntegrationTests` and `Keystead.SecurityTests`.
+The failure cases carry the weight: tamper on ciphertext, nonce and tag; wrong key; ciphertext
+moved to another workspace, vault, secret or version; purpose confusion; nonce uniqueness across
+200 seals; malformed and weaker-parameter password digests; pepper mismatch; audit chain edit,
+rehash, delete and reorder detection; the full role matrix checked exhaustively; TOTP replay and
+seed relocation; cross-tenant access attempted from six directions and refused each time; and
+the full three-tier envelope with a value relocated to another workspace, vault, secret and
+version, a data key spliced in from a different version, and a value presented as its own
+wrapped key.
 
-### Not yet built
+The token suite performs the classic JWT attacks and asserts each is refused: `alg: none`,
+HS256 confusion (signing with the public key as an HMAC secret), a token signed by an attacker's
+key claiming the server's key id, a tampered signature, a token with no key id, an expired
+token, and a token held by an identity that has since been revoked.
 
-See [TRACEABILITY.md](TRACEABILITY.md) for the full list with reasons. The eight items worth
-knowing about:
-- **M8** — integration and security test suites, STRIDE threat model, SECURITY.md, DEPLOYMENT.md
+**Security claims are tests, not comments.** Every header, cookie flag and CSP directive this
+README promises has an assertion in `Keystead.SecurityTests`, run against the real pipeline as
+`Program` composes it. A set of source rules enforces the absolutes that no runtime test can
+reach: no `Html.Raw`, no inline script, no inline style, no inline event handler, no `eval`, no
+`innerHTML`, no CDN, no concatenated SQL, no weak primitive, no cipher mode but GCM, no
+equality operator on secret-derived bytes, and no unfinished placeholder in any file that
+touches a key.
 
-Known gaps within what is built: there is no JWKS endpoint (the public keys are stored and
-usable but not published), and master-key and vault KEK rotation are modelled and stored but have no background job to
-run them. Token signing key rotation is implemented and tested. Revealing a secret and the
-command palette both require JavaScript; every other action, including search, works without
-it.
+### Against a running instance
+
+Four scripts drive the real application over HTTP rather than in-process:
+
+| Script | What it does |
+|---|---|
+| [`seed-workspace.py`](scripts/seed-workspace.py) | Builds a realistic installation — four vaults, sixteen secrets, six members, four service identities, version history and a rollback — entirely through the public interface |
+| [`smoke-flow.py`](scripts/smoke-flow.py) | 81 assertions over the whole flow, including that a secret value appears in no list page, no detail page, no browser `GET`, no API list response, no audit row and no CSV export |
+| [`verify-sdk-cli.py`](scripts/verify-sdk-cli.py) | 29 more against the SDK, the CLI and the OpenAPI document |
+| [`pentest-probe.py`](scripts/pentest-probe.py) | 21 real attacks — forged tokens, `alg: none`, cross-vault reads, CSRF, open redirects, path traversal, stored script, mass assignment — each of which must be refused |
+| [`load-test.py`](scripts/load-test.py) | A thousand concurrent callers through three scenarios, counting outcomes by status so a 429 is read as the limiter working rather than as a failure |
+
+### What that turned up
+
+Running and measuring the application found four defects that no build, test or review had:
+every inline style silently discarded by the Content Security Policy, a self-hosted font that
+was never in the repository, a full Argon2id hash on every request including anonymous ones,
+and a rate limit that counted page views and locked users out of signing in.
+
+All four are fixed, with regression tests. The measurements, the load test results, the twenty
+one attack attempts, and six findings that are **listed rather than fixed** are written up in
+**[FINDINGS.md](FINDINGS.md)**, along with the scope of improvement.
+
+### Known gaps
+
+There is no JWKS endpoint — the public keys are stored and usable but not published. Master-key
+and vault KEK rotation are modelled and stored but have no background job to run them; token
+signing key rotation is implemented and tested. Revealing a secret and the command palette both
+require JavaScript; every other action, including search, works without it. See
+[TRACEABILITY.md](TRACEABILITY.md) for every requirement mapped to its implementation and test,
+or to the reason it is absent.
 
 ---
 
@@ -138,6 +243,9 @@ Apply the schema and start the application:
 dotnet ef database update --project src/Keystead.Infrastructure && dotnet run --project src/Keystead.Web
 ```
 
+Open the application and the first-run wizard creates the workspace and the owner account. The
+wizard closes permanently once an account exists.
+
 The application **refuses to start** without a valid 256-bit master key. That is deliberate:
 starting without one would give you a process that looks healthy, accepts writes, and cannot
 decrypt anything it stored.
@@ -146,6 +254,12 @@ Run the tests:
 
 ```bash
 dotnet test
+```
+
+To fill a local instance with something to look at:
+
+```bash
+python scripts/seed-workspace.py https://localhost:5001
 ```
 
 ---
@@ -159,15 +273,17 @@ src/Keystead.Infrastructure  EF Core, cryptography, key providers, migrations
 src/Keystead.Web             Razor Pages UI and the machine API under /api/v1
 src/Keystead.Client          SDK and the AddKeystead() configuration provider
 src/Keystead.Cli             the `keystead` dotnet tool
-tests/Keystead.Tests         unit tests (crypto, hashing, audit chain)
-tests/Keystead.IntegrationTests   WebApplicationFactory suites
-tests/Keystead.SecurityTests      header, CSP and redaction assertions
+tests/Keystead.Tests              unit tests (crypto, hashing, audit chain, identity)
+tests/Keystead.IntegrationTests   WebApplicationFactory suites over the whole flow
+tests/Keystead.SecurityTests      headers, CSP, cookie flags, rate limits, source rules
+scripts/                          seeding, screenshots, smoke flow, load test, attack probe
 ```
 
 ### Documents
 
 | File | What it is for |
 |---|---|
+| [FINDINGS.md](FINDINGS.md) | What running, measuring and attacking it turned up, and what is still open |
 | [CLAUDE.md](CLAUDE.md) | The conventions and non-negotiable security rules for any change here |
 | [PLAN.md](PLAN.md) | The design and the milestone plan |
 | [THREATMODEL.md](THREATMODEL.md) | STRIDE table, and a limitations section that is not a formality |
@@ -177,10 +293,22 @@ tests/Keystead.SecurityTests      header, CSP and redaction assertions
 
 ---
 
-## A note on what cryptography here does and does not do
+## A note on what the cryptography here does and does not do
 
 `KeyMaterial` zeroes key bytes on disposal, which bounds how long a key sits in memory. It does
 not guarantee the key was never copied: the CLR may relocate an array during a compacting
 collection, and nothing in managed code defends against a memory dump taken while a key is
 live. That is a real limit, recorded here rather than hidden, and it is why the master key
 provider interface is shaped to let a remote KMS do the wrapping instead.
+
+This is a portfolio project. It is built to the standard its subject matter demands and it has
+been attacked, measured and documented honestly — including the parts that are not finished.
+It has not been through an independent security review, and software that holds other people's
+secrets should have one before it holds yours.
+
+---
+
+## Licence
+
+The fonts in `src/Keystead.Web/wwwroot/fonts` are Mona Sans and Mona Sans Mono, used under the
+SIL Open Font Licence; the licence travels with them in that directory.
