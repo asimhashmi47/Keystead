@@ -65,22 +65,58 @@ public sealed class TotpService : ITotpService
 
             var base32 = Base32Encoding.ToString(seed);
 
-            var uri = string.Format(
-                CultureInfo.InvariantCulture,
-                "otpauth://totp/{0}:{1}?secret={2}&issuer={0}&algorithm=SHA1&digits=6&period={3}",
-                Uri.EscapeDataString(Issuer),
-                Uri.EscapeDataString(accountLabel),
-                base32,
-                StepSeconds);
-
             return new TotpEnrolment(
                 base32,
-                uri,
+                BuildProvisioningUri(base32, accountLabel),
                 new StoredTotpSeed(blob.Ciphertext, blob.Nonce, blob.Tag, version));
         }
         finally
         {
             CryptographicOperations.ZeroMemory(seed);
+        }
+    }
+
+    /// <inheritdoc />
+    /// <exception cref="ArgumentNullException"><paramref name="seed"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="accountLabel"/> is null or empty.</exception>
+    public TotpEnrolment? Describe(Guid userId, StoredTotpSeed seed, string accountLabel)
+    {
+        ArgumentNullException.ThrowIfNull(seed);
+        ArgumentException.ThrowIfNullOrWhiteSpace(accountLabel);
+
+        var masterKey = _masterKeys.TryGetKey(seed.MasterKeyVersion);
+
+        if (masterKey is null)
+        {
+            return null;
+        }
+
+        byte[]? recovered = null;
+
+        try
+        {
+            var context = CryptoContext.ForTotpSeed(userId, seed.MasterKeyVersion);
+            var blob = new SealedBlob(seed.Ciphertext, seed.Nonce, seed.Tag);
+
+            recovered = _cipher.Open(masterKey, blob, context);
+
+            return new TotpEnrolment(
+                Base32Encoding.ToString(recovered),
+                BuildProvisioningUri(Base32Encoding.ToString(recovered), accountLabel),
+                seed);
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+        finally
+        {
+            if (recovered is not null)
+            {
+                CryptographicOperations.ZeroMemory(recovered);
+            }
+
+            masterKey.Dispose();
         }
     }
 
@@ -152,4 +188,17 @@ public sealed class TotpService : ITotpService
             masterKey.Dispose();
         }
     }
+
+    /// <summary>Builds the <c>otpauth://</c> URI an authenticator app scans.</summary>
+    /// <param name="base32">The shared secret in base32.</param>
+    /// <param name="accountLabel">The label shown in the app.</param>
+    /// <returns>The provisioning URI.</returns>
+    private static string BuildProvisioningUri(string base32, string accountLabel) =>
+        string.Format(
+            CultureInfo.InvariantCulture,
+            "otpauth://totp/{0}:{1}?secret={2}&issuer={0}&algorithm=SHA1&digits=6&period={3}",
+            Uri.EscapeDataString(Issuer),
+            Uri.EscapeDataString(accountLabel),
+            base32,
+            StepSeconds);
 }

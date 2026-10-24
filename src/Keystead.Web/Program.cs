@@ -24,9 +24,21 @@ using Serilog;
 
 namespace Keystead.Web;
 
-/// <summary>The application entry point and composition root.</summary>
-public static class Program
+/// <summary>
+/// The application entry point and composition root.
+/// </summary>
+/// <remarks>
+/// A sealed class with a private constructor rather than a static one, because
+/// <c>WebApplicationFactory&lt;T&gt;</c> cannot take a static type as its argument and the
+/// integration and security suites host this exact pipeline. A marker type would work too and
+/// would be one more thing to explain.
+/// </remarks>
+public sealed class Program
 {
+    private Program()
+    {
+    }
+
     /// <summary>Builds and runs the web application.</summary>
     /// <param name="args">Command line arguments.</param>
     /// <returns>A process exit code.</returns>

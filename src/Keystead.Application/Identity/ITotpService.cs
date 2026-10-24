@@ -11,6 +11,21 @@ public interface ITotpService
     /// <returns>The enrolment, whose plaintext secret is shown exactly once.</returns>
     TotpEnrolment CreateEnrolment(Guid userId, string accountLabel);
 
+    /// <summary>
+    /// Rebuilds the display data for a seed that is already stored but not yet enrolled.
+    /// </summary>
+    /// <remarks>
+    /// Needed so the enrolment page shows the same QR code every time it is loaded. Issuing a
+    /// fresh seed on each visit means someone who scans the code and then reloads the page is
+    /// told their correct code is wrong, which is a confusing failure with no security
+    /// benefit: an un-enrolled seed is not a usable second factor either way.
+    /// </remarks>
+    /// <param name="userId">The user the seed belongs to, checked as AAD.</param>
+    /// <param name="seed">The stored sealed seed.</param>
+    /// <param name="accountLabel">The label shown in the authenticator app.</param>
+    /// <returns>The display data, or null when the seed cannot be opened.</returns>
+    TotpEnrolment? Describe(Guid userId, StoredTotpSeed seed, string accountLabel);
+
     /// <summary>Verifies a submitted code against a stored seed.</summary>
     /// <param name="userId">The user the seed belongs to, checked as AAD.</param>
     /// <param name="seed">The stored sealed seed.</param>

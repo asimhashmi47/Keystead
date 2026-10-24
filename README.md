@@ -6,7 +6,7 @@ keys, connection strings, certificates and tokens, which applications fetch at r
 Built on .NET 10, ASP.NET Core Razor Pages, EF Core and SQLite. Concept-comparable to Azure
 Key Vault, scoped to something a team can actually run on one box.
 
-> **Status: in development.** Milestones M1 to M7 are complete and committed. Keystead is now
+> **Status: in development.** All eight milestones are complete and committed. Keystead is now
 > usable for its stated purpose: a team can set it up, sign in with a second factor, store
 > secrets, and an application can fetch them at runtime over the machine API with a scoped,
 > short-lived token. The .NET SDK, the CLI and Docker packaging (M7) are not built yet, so
@@ -73,8 +73,9 @@ an endpoint that forgets to declare a policy fails closed rather than open.
 | CLI | `keystead secret list/get/set`, `env`, and `run -- <command>` which injects secrets into a child process and propagates its exit code |
 | Packaging | Chiselled non-root image, read-only root filesystem, all capabilities dropped, mounted master key, plus Caddy and Nginx reverse proxy configs |
 | CI | Build with warnings as errors, `dotnet format` gate, coverage report, CodeQL at security-and-quality, CycloneDX SBOM, Dependabot, and a container build that asserts a non-root user |
+| Verification | Response headers, CSP nonce uniqueness, cookie flags and deny-by-default asserted against the real pipeline; source greps enforcing the absolutes in CLAUDE.md; a log-capture test proving a secret reaches no sink |
 
-**428 unit tests, all passing.** The failure cases carry the weight: tamper on ciphertext, nonce
+**560 tests, all passing** (460 unit, 25 integration, 75 security). The failure cases carry the weight: tamper on ciphertext, nonce
 and tag; wrong key; ciphertext moved to another workspace, vault, secret or version; purpose
 confusion; nonce uniqueness across 200 seals; malformed and weaker-parameter password digests;
 pepper mismatch; audit chain edit, rehash, delete and reorder detection; the full role matrix
@@ -109,7 +110,8 @@ assertions into `Keystead.IntegrationTests` and `Keystead.SecurityTests`.
 
 ### Not yet built
 
-Milestone M8 in [PLAN.md](PLAN.md):
+See [TRACEABILITY.md](TRACEABILITY.md) for the full list with reasons. The eight items worth
+knowing about:
 - **M8** — integration and security test suites, STRIDE threat model, SECURITY.md, DEPLOYMENT.md
 
 Known gaps within what is built: there is no JWKS endpoint (the public keys are stored and
@@ -162,8 +164,16 @@ tests/Keystead.IntegrationTests   WebApplicationFactory suites
 tests/Keystead.SecurityTests      header, CSP and redaction assertions
 ```
 
-[CLAUDE.md](CLAUDE.md) holds the conventions and the non-negotiable security rules that apply
-to any change in this repository.
+### Documents
+
+| File | What it is for |
+|---|---|
+| [CLAUDE.md](CLAUDE.md) | The conventions and non-negotiable security rules for any change here |
+| [PLAN.md](PLAN.md) | The design and the milestone plan |
+| [THREATMODEL.md](THREATMODEL.md) | STRIDE table, and a limitations section that is not a formality |
+| [SECURITY.md](SECURITY.md) | How to report a vulnerability, and what is in scope |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | How to run it, ordered by what breaks worst if you get it wrong |
+| [TRACEABILITY.md](TRACEABILITY.md) | Every requirement mapped to its implementation and test, or to why it is absent |
 
 ---
 

@@ -68,6 +68,34 @@ public sealed class MfaEnrolmentService : IMfaEnrolmentService
             return null;
         }
 
+        // Reuse a seed that is already stored but not yet enrolled, so the page shows the same
+        // QR code every time it is loaded. Issuing a fresh one per visit means someone who
+        // scans the code and then reloads is told their correct code is wrong, which is a
+        // confusing failure with no security benefit: an un-enrolled seed is not a usable
+        // second factor either way.
+        if (user.MfaSecretCiphertext is not null
+            && user.MfaSecretNonce is not null
+            && user.MfaSecretTag is not null)
+        {
+            var existing = _totp.Describe(
+                user.Id,
+                new StoredTotpSeed(
+                    user.MfaSecretCiphertext,
+                    user.MfaSecretNonce,
+                    user.MfaSecretTag,
+                    user.MfaSeedMasterKeyVersion),
+                user.Email);
+
+            if (existing is not null)
+            {
+                return existing;
+            }
+
+            // The stored seed could not be opened, which means the master key generation that
+            // sealed it is gone. Fall through and issue a new one: the old seed was never
+            // enrolled, so nothing is lost by replacing it.
+        }
+
         var enrolment = _totp.CreateEnrolment(user.Id, user.Email);
 
         user.MfaSecretCiphertext = enrolment.Seed.Ciphertext;
