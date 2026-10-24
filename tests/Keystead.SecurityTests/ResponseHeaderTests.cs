@@ -90,6 +90,58 @@ public sealed class ResponseHeaderTests
         Assert.Equal("no-cache", First(response, "Pragma"));
     }
 
+    [Theory]
+    [InlineData("/css/keystead.css")]
+    [InlineData("/js/shell.js")]
+    [InlineData("/fonts/keystead-sans.woff2")]
+    public async Task AStaticAssetMayBeCached(string path)
+    {
+        // The exemption to the rule above, and the only one. These files carry no secret
+        // material, and sending no-store on them meant re-downloading a stylesheet, three
+        // scripts and a 137 KB font on every page load of a tool people keep open all day.
+        using var client = _factory.CreateApiClient();
+        using var response = await client.GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var cacheControl = First(response, "Cache-Control") ?? string.Empty;
+
+        Assert.DoesNotContain("no-store", cacheControl, StringComparison.Ordinal);
+        Assert.Contains("max-age=31536000", cacheControl, StringComparison.Ordinal);
+        Assert.Contains("immutable", cacheControl, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("/forbidden")]
+    [InlineData("/sign-out")]
+    [InlineData("/vaults")]
+    [InlineData("/healthz")]
+    public async Task EverythingTheApplicationGenerates_IsStillUncacheable(string path)
+    {
+        // Stated as its own test because the cache exemption is the kind of change that
+        // widens by accident. no-store is the default; the asset tree is the exception.
+        using var client = _factory.CreateApiClient();
+        using var response = await client.GetAsync(path);
+
+        Assert.Contains(
+            "no-store",
+            First(response, "Cache-Control") ?? string.Empty,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheStylesheetIsRequestedWithAContentHash()
+    {
+        // What makes a year-long lifetime safe. Without the version query, a changed
+        // stylesheet would keep the old URL and browsers would hold the old file for a year.
+        using var client = _factory.CreateApiClient();
+        using var response = await client.GetAsync(HeaderProbePath);
+
+        var markup = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("/css/keystead.css?v=", markup, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task TheServerDoesNotAnnounceItself()
     {

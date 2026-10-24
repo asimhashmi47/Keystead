@@ -27,11 +27,13 @@ function initReveal() {
 
     let hideTimer = null;
     let tickTimer = null;
+    let showing = false;
 
     function hide() {
         window.clearTimeout(hideTimer);
         window.clearInterval(tickTimer);
 
+        showing = false;
         output.textContent = MASK;
         button.disabled = false;
         button.textContent = "Reveal value";
@@ -72,7 +74,16 @@ function initReveal() {
         hideTimer = window.setTimeout(hide, seconds * 1000);
     }
 
-    button.addEventListener("click", async () => {
+    function failed(message) {
+        if (status) {
+            status.textContent = message;
+        }
+
+        button.disabled = false;
+        button.textContent = "Reveal value";
+    }
+
+    async function reveal() {
         button.disabled = true;
         button.textContent = "Revealing...";
 
@@ -95,7 +106,10 @@ function initReveal() {
             const payload = await response.json().catch(() => ({}));
 
             if (response.status === 403 && payload.stepUpRequired) {
-                // Answerable, so send them to confirm rather than showing a refusal.
+                // Answerable, so send them to confirm rather than showing a refusal. The URL
+                // the server hands back comes back here carrying the intent, so confirming
+                // finishes the reveal the person asked for instead of returning them to a page
+                // that looks unchanged.
                 if (status) {
                     status.textContent = payload.message ?? "Confirm your identity to continue.";
                 }
@@ -105,15 +119,11 @@ function initReveal() {
             }
 
             if (!response.ok) {
-                if (status) {
-                    status.textContent = payload.message ?? "That value could not be revealed.";
-                }
-
-                button.disabled = false;
-                button.textContent = "Reveal value";
+                failed(payload.message ?? "That value could not be revealed.");
                 return;
             }
 
+            showing = true;
             output.textContent = payload.value ?? "";
             button.textContent = "Hide value";
             button.disabled = false;
@@ -127,18 +137,40 @@ function initReveal() {
             }
 
             startCountdown(payload.autoHideSeconds ?? 30);
-
-            // While revealed, the button hides instead of re-fetching.
-            button.addEventListener("click", hide, { once: true });
         } catch {
-            if (status) {
-                status.textContent = "The request failed. Nothing was revealed.";
-            }
-
-            button.disabled = false;
-            button.textContent = "Reveal value";
+            failed("The request failed. Nothing was revealed.");
         }
-    }, { once: true });
+    }
+
+    // One listener for the life of the page, switching on what is on screen. It used to be
+    // registered with `once`, which meant a refused reveal — a stale step-up, a disabled
+    // secret — left a button that looked enabled and did nothing until the page was reloaded.
+    button.addEventListener("click", () => {
+        if (showing) {
+            hide();
+            return;
+        }
+
+        void reveal();
+    });
+
+    // Arriving with the intent the step-up carried through. The marker is consumed before the
+    // request goes out, so a reload, a bookmark or a shared URL does not silently repeat an
+    // audited read of a secret.
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get("reveal") === "1") {
+        params.delete("reveal");
+
+        const rest = params.toString();
+
+        window.history.replaceState(
+            null,
+            "",
+            rest ? `${window.location.pathname}?${rest}` : window.location.pathname);
+
+        void reveal();
+    }
 
     // Leaving the page clears the value from the DOM rather than leaving it in a cached
     // rendering of the document.

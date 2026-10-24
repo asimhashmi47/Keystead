@@ -85,15 +85,51 @@ Keystead__ReverseProxy__KnownNetworks__0: "172.16.0.0/12"   # the Docker bridge
 Keystead__ReverseProxy__KnownProxies__0: "10.0.0.5"
 ```
 
+Name **every** address the proxy may connect from. Naming one replaces the built-in loopback
+trust rather than adding to it, so a proxy on the same host that connects over IPv6 needs `::1`
+listed as well as `127.0.0.1` — otherwise the header is not trusted, and the only symptom is
+that every client appears to be the proxy.
+
 If you widen this carelessly — `0.0.0.0/0`, say — you disable the per-identity IP allowlist and
-the per-address rate limits **while leaving their appearance intact**. The security centre will
-still show an allowlist. It will no longer mean anything.
+the per-address rate limits **while leaving their appearance intact**. The security centre would
+still show an allowlist, and it would no longer mean anything.
+
+So Keystead refuses to start on a range that wide. If every connection genuinely terminates at
+a proxy that overwrites `X-Forwarded-For`, say so explicitly:
+
+```yaml
+Keystead__ReverseProxy__TrustAnyProxyAddress: "true"
+```
+
+Naming the proxy's own network is the better answer, and it is the one that keeps both controls.
 
 The defaults trust loopback only, which is why this must be set when you put Keystead behind
 anything.
 
 Do not add or rewrite security headers at the proxy. Keystead sends a strict nonce CSP; a proxy
 that injects its own would break the nonce and block the application's own scripts.
+
+### Rate limits
+
+The defaults suit a small team reaching the application directly. Every ceiling is
+configurable, and the two that matter once there is a proxy in the path are the last two:
+
+```yaml
+Keystead__RateLimits__SignInAttemptsPerFiveMinutes: "10"
+Keystead__RateLimits__MfaAttemptsPerFiveMinutes: "10"
+Keystead__RateLimits__TokenIssuancesPerMinute: "30"
+Keystead__RateLimits__SecretReadBurst: "120"
+Keystead__RateLimits__SecretReadsPerMinute: "60"
+Keystead__RateLimits__GlobalRequestsPerMinute: "600"
+Keystead__RateLimits__RequestsPerMinutePerAddress: "6000"
+```
+
+Everything except the last is counted per caller: a signed-in person, or a service identity
+identified by the bearer token it presents. `RequestsPerMinutePerAddress` is counted per source
+address, and it is the ceiling nothing can talk its way around, so raise it with the number of
+callers behind the proxy rather than with the traffic they send.
+
+A value outside its documented range is a startup failure, not a silently clamped number.
 
 ---
 

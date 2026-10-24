@@ -135,11 +135,21 @@ public sealed class SecretDetailModel : KeysteadPageModel
             {
                 Response.StatusCode = StatusCodes.Status403Forbidden;
 
+                // The return URL carries the intent, not the handler. Sending them back to
+                // this request's own query string meant returning to "?handler=Reveal" as a
+                // GET, which renders the page with the value still hidden: the person
+                // confirmed their identity and nothing appeared to happen, which is how people
+                // learn to click through authentication prompts. The marker is what the page
+                // script acts on, and it is a request to retry the reveal — not an
+                // authorisation to perform one. The step-up itself is what decides that, and
+                // this handler is still the only thing that can return a value.
+                var intent = $"{Request.Path}?reveal=1";
+
                 return new JsonResult(new
                 {
                     stepUpRequired = true,
                     message = error.Message,
-                    stepUpUrl = $"/step-up?next={Uri.EscapeDataString(Request.Path + Request.QueryString)}",
+                    stepUpUrl = $"/step-up?next={Uri.EscapeDataString(intent)}",
                 });
             }
 

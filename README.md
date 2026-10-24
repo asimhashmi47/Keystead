@@ -169,7 +169,7 @@ so revoking one takes effect on the next request rather than when its token happ
 
 ## How it is verified
 
-**565 tests, all passing** — 461 unit, 25 integration, 79 security.
+**603 tests, all passing** — 466 unit, 25 integration, 112 security.
 
 The failure cases carry the weight: tamper on ciphertext, nonce and tag; wrong key; ciphertext
 moved to another workspace, vault, secret or version; purpose confusion; nonce uniqueness across
@@ -212,9 +212,22 @@ every inline style silently discarded by the Content Security Policy, a self-hos
 was never in the repository, a full Argon2id hash on every request including anonymous ones,
 and a rate limit that counted page views and locked users out of signing in.
 
-All four are fixed, with regression tests. The measurements, the load test results, the twenty
-one attack attempts, and six findings that are **listed rather than fixed** are written up in
-**[FINDINGS.md](FINDINGS.md)**, along with the scope of improvement.
+Attacking it found six more. Two of those were worse than the first write-up of them: the
+machine API's rate limits were keyed by source address, so eight service identities behind one
+address shared one budget and 872 of a thousand reads were refused; and the reverse proxy
+configuration an operator writes was **never applied at all**, because the configuration binder
+cannot turn `"172.16.0.0/12"` into an `IPNetwork` and dropped it in silence. The second one
+meant any installation behind a proxy compared the proxy's address against a service identity's
+IP allowlist, and treated every caller on the internet as one client for rate limiting, while
+the security centre carried on showing an allowlist.
+
+Those are fixed and measured, as is the step-up flow that used to return people to a page where
+nothing had visibly happened, and the `no-store` that was being applied to the font as well as
+to the secrets. One finding is accepted as designed behaviour and written down rather than
+patched: the audit chain fails an action rather than lose an entry.
+
+Every measurement, the load test results, the twenty one attack attempts, the before-and-after
+numbers, and the scope of improvement are in **[FINDINGS.md](FINDINGS.md)**.
 
 ### Known gaps
 
@@ -283,7 +296,7 @@ scripts/                          seeding, screenshots, smoke flow, load test, a
 
 | File | What it is for |
 |---|---|
-| [FINDINGS.md](FINDINGS.md) | What running, measuring and attacking it turned up, and what is still open |
+| [FINDINGS.md](FINDINGS.md) | What running, measuring and attacking it turned up, what was fixed, and what was accepted instead |
 | [CLAUDE.md](CLAUDE.md) | The conventions and non-negotiable security rules for any change here |
 | [PLAN.md](PLAN.md) | The design and the milestone plan |
 | [THREATMODEL.md](THREATMODEL.md) | STRIDE table, and a limitations section that is not a formality |

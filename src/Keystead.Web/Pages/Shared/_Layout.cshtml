@@ -39,7 +39,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="referrer" content="no-referrer" />
     <title>@ViewData["Title"] &middot; Keystead</title>
-    <link rel="stylesheet" href="~/css/keystead.css" />
+    <link rel="stylesheet" href="~/css/keystead.css" asp-append-version="true" />
     <link rel="icon" href="~/favicon.ico" />
 </head>
 <body>
@@ -262,8 +262,8 @@
         </p>
     </dialog>
 
-    <script nonce="@Nonce.Value" src="~/js/shell.js" type="module"></script>
-    <script nonce="@Nonce.Value" src="~/js/palette.js" type="module"></script>
+    <script nonce="@Nonce.Value" src="~/js/shell.js" type="module" asp-append-version="true"></script>
+    <script nonce="@Nonce.Value" src="~/js/palette.js" type="module" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

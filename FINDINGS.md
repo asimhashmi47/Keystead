@@ -11,7 +11,8 @@ the command that produced it is named. Where something was not established, it s
 - [What was fixed](#what-was-fixed)
 - [What the load test found](#what-the-load-test-found)
 - [What the adversarial pass found](#what-the-adversarial-pass-found)
-- [Open findings, not fixed](#open-findings-not-fixed)
+- [What fixing the findings turned up](#what-fixing-the-findings-turned-up)
+- [The finding that was accepted rather than fixed](#the-finding-that-was-accepted-rather-than-fixed)
 - [Scope of improvement](#scope-of-improvement)
 
 ---
@@ -142,9 +143,10 @@ partition time and every machine caller from one address shares one bucket.
 For an installation behind a load balancer, a NAT gateway or inside a corporate network, that
 means every application shares a single budget and one chatty service starves the rest.
 
-**Partly fixed:** the limits are now configurable (`Keystead:RateLimits`), because an operator
-in that position previously had no way to raise them at all. **Not fixed:** the partition key
-itself — see the open findings below.
+**Fixed, in two steps.** The limits became configurable (`Keystead:RateLimits`), because an
+operator in that position previously had no way to raise them at all — and then the partition
+key itself was changed, which is what actually solved it. The same scenario now runs clean on
+the shipped defaults: see [F1](#f1---machine-api-rate-limiting-was-keyed-by-source-address-not-by-identity).
 
 ### The ceiling that was found is the harness, not the application
 
@@ -228,116 +230,234 @@ network can resolve; and the deployment itself. It is a probe, not a review.
 
 ---
 
-## Open findings, not fixed
+## What fixing the findings turned up
 
-Listed rather than fixed, deliberately. Each one is a design conversation, not a patch.
+The adversarial pass listed six findings and fixed none of them, deliberately: an attack that
+has just succeeded is the worst possible moment to design the answer to it. Five were then
+worked through properly. One was accepted as designed behaviour and is set out in the next
+section.
 
-### F1 — Machine API rate limiting is keyed by source address, not by identity
+Two of the five turned out to be worse than the write-up said, which is the recurring lesson of
+this whole exercise: a finding reached by reading the code describes what the code says, and
+only running it says what it does.
 
-**Severity: moderate.** The limiter runs before the endpoint resolves the bearer token, so every
-service identity reaching the server from one address shares one bucket. Behind a load balancer
-or a NAT gateway, that is every application in the estate.
+### F1 - Machine API rate limiting was keyed by source address, not by identity
 
-One noisy client can exhaust the budget for all of them, and the symptom — 429s on a correctly
-credentialled request — looks like the caller's fault.
+**What it was.** The limiter partitioned authenticated traffic by principal and everything else
+by remote address, and the machine API resolves its bearer token *inside* the endpoint, after
+the limiter has run. So at partition time every machine caller was anonymous, and every service
+identity arriving from one address shared one bucket. Behind a load balancer or a NAT gateway
+that is every application in the estate on one budget, and the symptom - a 429 on a correctly
+credentialled request - looks like the caller's fault.
 
-**The shape of a fix:** authenticate the machine token in middleware before the limiter rather
-than inside each endpoint, so the partition key can be the service identity. That is a real
-restructuring of the API pipeline, and it changes where audit entries for failed authentication
-are written, which is why it is a conversation rather than a patch.
+**Measured, on the shipped defaults, eight distinct service identities from one address:**
 
-### F2 — Trusting forwarded headers is an operator footgun
+| | Before | After |
+|---|---|---|
+| Refused with 429 | 872 of 1,000 | **0 of 1,000** |
+| Served | 128 | 750, plus 250 deliberate misses answered 404 |
 
-`UseForwardedHeaders` is configured with `ForwardLimit = 1` and the default known-proxy list,
-which is loopback only — correct. But `Keystead:ReverseProxy` binds straight onto
-`ForwardedHeadersOptions`, so an operator can set `KnownNetworks` to `0.0.0.0/0` in one line of
-JSON and silently hand every client the ability to forge its own address. That defeats the IP
-allowlist on service identities and the per-address rate limits at the same time.
+**Fixed by** partitioning per caller instead: the signed-in principal, or - when the request
+presents a bearer token the limiter has not yet verified - a truncated SHA-256 of that token.
+The token itself is never the key, because a partition key reaches logs, metrics and
+diagnostics and the token is a live credential.
 
-**The shape of a fix:** validate the bound options at startup and refuse to run with a
-known-network range wider than some threshold unless an explicit acknowledgement setting is
-present. Fail loudly at boot, not quietly in production.
+**The part that needed thinking about.** A key derived from an unverified credential is one an
+attacker can fabricate, so rotating tokens would mint a fresh bucket per request. That is why
+the global limiter is now a *chain* of two: an inner per-caller window for fairness, and an
+outer per-address window as the boundary, keyed by something the client cannot choose. The
+per-caller key groups requests; it never admits them. A fabricated token still fails at the
+endpoint with a 401 before it reaches a vault.
 
-### F3 — The audit chain converts write contention into failed actions
+Verified by attacking it: 400 requests from one address, each carrying a freshly fabricated
+token, against a per-address ceiling of 200 - **199 served, 201 refused**. The per-caller
+limiter cannot see those as one caller. The address limiter can.
 
-Appending is `SELECT MAX(seq)` then `INSERT`, guarded by a process-wide semaphore, with a unique
-index as the real protection and five retries on violation. The reasoning is sound and the
-comments say so. Two consequences follow:
+### F2 - The reverse proxy configuration was never applied at all
+
+This is the one that was worse than the finding.
+
+**What the finding said.** `Keystead:ReverseProxy` binds straight onto
+`ForwardedHeadersOptions`, so an operator could widen `KnownNetworks` to `0.0.0.0/0` in one
+line of JSON and hand every client the ability to forge its own address.
+
+**What was actually true.** They could not widen it, because they could not set it. The
+configuration binder populates a scalar such as `ForwardLimit` and **cannot construct an
+`IPNetwork` or an `IPAddress` from a string**, so every network and every proxy an operator
+named was discarded in silence. Confirmed directly, binding the documented configuration into a
+fresh options object:
+
+```text
+ForwardLimit    = 2                 <- bound
+KnownIPNetworks = 127.0.0.0/8       <- the default; "172.16.0.0/12" was dropped
+KnownProxies    = ::1               <- the default; "10.0.0.5" was dropped
+```
+
+So any installation behind a proxy - which is every production installation, since the product
+requires TLS it does not terminate itself - trusted loopback only, ignored `X-Forwarded-For`,
+and saw the proxy as every client. The IP allowlist on a service identity compared the proxy's
+address rather than the caller's. The per-address rate limit treated the entire internet as one
+client. `DEPLOYMENT.md` documented the setting that fixes exactly that, and it did nothing.
+
+Nothing about a running installation looked wrong. The security centre showed an allowlist. The
+limiter showed 429s.
+
+**Fixed by** owning the strings: `ReverseProxyOptions` binds plain text, and the parse,
+validation and application are deliberate code with tests either side of them. Naming a proxy
+now replaces the loopback default rather than adding to it, so a sibling container on the host
+cannot still choose its own address.
+
+**Measured**, with the proxy named and a per-address ceiling of 60: 100 requests carrying 100
+distinct forwarded addresses, **all 100 served**. Before, all 100 shared the one bucket the
+connection came from.
+
+And the original footgun is closed on the way past. A range wide enough to cover any client
+stops the process at startup unless an operator says, in as many words, that every connection
+terminates at a proxy that overwrites the header:
+
+```text
+KnownNetworks entry '0.0.0.0/0' is wide enough that any client could choose the address
+Keystead sees, which defeats the per-address rate limits and the IP allowlist on service
+identities. Name the proxy's own network, or set
+Keystead:ReverseProxy:TrustAnyProxyAddress to true if every connection really does
+terminate at a proxy that overwrites X-Forwarded-For.
+```
+
+An unparseable entry stops it too, acknowledged or not. A typo is never a decision, and
+treating one as a decision is what caused this in the first place.
+
+### F4 - Step-up returned to a dead end
+
+**What it was.** Revealing a value without a fresh step-up redirected to the confirmation form,
+correctly - and then returned the browser to `?handler=Reveal` as a `GET`, which renders the
+page with the value still hidden. The person typed their password, typed their code, and
+watched nothing happen.
+
+Not a vulnerability. It is how people learn to click through authentication prompts, which
+eventually is one.
+
+**Fixed by** having the return URL carry the intent rather than the handler, and having the page
+act on it. The marker is a request to retry the reveal, not an authorisation to perform one: the
+step-up decides that, and the `POST` handler is still the only thing that can return a value. It
+is consumed before the request goes out, so a reload or a shared URL cannot silently repeat an
+audited read.
+
+**Verified in a browser**, against a session whose step-up had been backdated past the window:
+clicking reveal lands on `/step-up?next=%2Fvaults%2Fproduction%2Fsecrets%2F...%3Freveal%3D1`,
+confirming returns to the clean page URL, and the value appears with *Showing version 4. This
+read has been recorded.* No second click.
+
+**And a bug found while fixing it.** The reveal button's click handler was registered with
+`{ once: true }`. After any refusal - a stale step-up, a disabled secret - the listener was
+gone, so the button looked enabled and did nothing until the page was reloaded. It now holds
+one listener for the life of the page and switches on what is on screen.
+
+### F5 - `no-store` was applied to static assets too
+
+**What it was.** The security headers middleware set `Cache-Control: no-store` on every
+response, including the stylesheet, the scripts and a 137 KB font. Correct and important for
+anything that may carry secret material, and pure waste for files that carry none - re-fetched
+on every page load of a tool people keep open all day.
+
+**Fixed by** exempting the asset tree, written in the direction that stays correct: `no-store`
+is the default, and the exemption is a closed list of path prefixes. A new page is covered
+automatically; a new asset directory has to be named where the decision is visible. The URLs
+carry a content hash, so a year-long immutable lifetime cannot serve a stale file, and a source
+rule fails the build if an asset is referenced without one.
+
+Live, after the change:
+
+| Path | `Cache-Control` |
+|---|---|
+| `/css/keystead.css` | `public, max-age=31536000, immutable` |
+| `/fonts/keystead-sans.woff2` | `public, max-age=31536000, immutable` |
+| `/js/reveal.js` | `public, max-age=31536000, immutable` |
+| `/sign-in` | `no-store, no-cache, must-revalidate, max-age=0` |
+
+### F6 - Session fixation across the second factor was not proven
+
+**What it was.** Nothing was wrong. The flow was already right: a separate short-lived scheme
+carries the pending user id between the password step and the code step, no session row exists
+until both factors are in, and the identifier is a fresh value minted server-side on
+completion. What was missing was anything that said so, which is the only reason a correct
+implementation stays correct through the next change.
+
+**Fixed by** five tests that state it: the password step alone creates no session, a wrong
+second factor creates none, the session appears only after the second factor succeeds, two
+completed sign-ins never share an identifier, and the new session starts with its step-up set
+by the server rather than by anything a client sent.
+
+### Confirmed afterwards
+
+- `dotnet build` - 0 warnings, 0 errors. `dotnet format --verify-no-changes` - clean.
+- **603 tests pass**: 466 unit, 25 integration, 112 security.
+- The adversarial pass was re-run against the changed pipeline: **21 of 21 attacks still
+  refused**.
+
+---
+
+## The finding that was accepted rather than fixed
+
+### F3 - The audit chain converts write contention into failed actions
+
+Appending is `SELECT MAX(seq)` then `INSERT`, guarded by a process-wide semaphore, with a
+unique index as the real protection and five retries on violation. Two consequences follow:
 
 - The semaphore does nothing across processes. In a multi-process deployment the retry loop is
   the only thing holding the line.
-- When five retries are exhausted the action **fails**. That is the right choice — an
-  unrecorded action is worse than a failed one — but it means sustained write contention
-  presents as user-visible errors rather than as slowness.
+- When five retries are exhausted the action **fails**.
 
-Not reached in the load test: three hundred concurrent writes all succeeded. It is a property of
-the design worth stating rather than discovering.
+That second one is the behaviour, and it is deliberate. An action that happened without an
+audit entry is worse than an action that did not happen, so the failure direction is correct.
+What it means in practice is that sustained write contention presents as user-visible errors
+rather than as slowness, and that is worth knowing before it is discovered.
 
-**The shape of a fix:** a single-writer queue with an explicit depth and a stated backpressure
-policy, so contention becomes a measured wait rather than a retry budget.
+It was not reached under load: three hundred concurrent writes all succeeded and the chain
+verified afterwards.
 
-### F4 — Step-up returns to a dead end
-
-Clicking **Reveal value** without a fresh step-up redirects to the confirmation form, correctly.
-After confirming, the browser lands back on the secret page at `?handler=Reveal` as a `GET` —
-which renders the page with the value still hidden. The user has to press Reveal again, with
-nothing explaining why their confirmation appeared to do nothing.
-
-Not a vulnerability. It is the sort of friction that teaches people to click through
-authentication prompts, which eventually is one.
-
-**The shape of a fix:** have the step-up page carry the intent through, so that confirming
-completes the action the user was trying to take.
-
-### F5 — `no-store` is applied to static assets too
-
-The security headers middleware sets `Cache-Control: no-store` on every response, including
-`/css/keystead.css` and the 137 KB font. Correct and important for pages that may carry secret
-material; unnecessary for assets that carry none, and it means every page load re-downloads
-them.
-
-**The shape of a fix:** fingerprinted asset URLs with a long cache lifetime, `no-store`
-everywhere else. The rule to preserve is that `no-store` must remain the default, with
-exemptions named explicitly rather than the reverse.
-
-### F6 — Session fixation across the second factor is not proven
-
-The sign-in flow uses a separate short-lived `__Host-keystead-mfa` scheme between the password
-step and the code step, which is the right structure. Whether the final session identifier is
-unconditionally fresh after the second factor — rather than inherited from anything issued
-earlier — was not established by this pass. It is a specific question with a specific answer in
-the code, and it deserves a test that states it.
+Changing it would mean a single-writer queue with an explicit depth and a stated backpressure
+policy, so contention becomes a measured wait instead of a retry budget. That is a design
+decision about how the product behaves when it is overloaded, not a defect to patch, and it
+belongs with the work in the next section rather than in a fix made under the pressure of a
+finding.
 
 ---
 
 ## Scope of improvement
 
-Beyond the findings. Roughly ordered by what would matter most to someone actually running this.
+The six findings are dealt with above. What follows is everything else, roughly ordered by
+what would matter most to someone actually running this.
 
 ### Security
 
-1. **Partition machine rate limits by identity** (F1). The single most consequential item here.
-2. **Validate reverse proxy configuration at startup** (F2).
-3. **A test that states the session identifier is new after the second factor** (F6).
-4. **Key rotation for the master key.** Vault KEKs and data keys rotate; the master key does
+1. **A single-writer queue for the audit chain** (F3), so overload becomes a measured wait
+   rather than a retry budget and a failed action.
+2. **Key rotation for the master key.** Vault KEKs and data keys rotate; the master key does
    not. A compromised master key currently means re-encrypting by hand.
-5. **Break-glass access.** If the only owner loses their authenticator and their recovery codes,
+3. **Break-glass access.** If the only owner loses their authenticator and their recovery codes,
    the workspace is unreachable. That is defensible, but it should be a documented decision
    rather than an emergent one.
-6. **Secret scanning on write.** A connection string pasted into the name field, or a value that
+4. **Secret scanning on write.** A connection string pasted into the name field, or a value that
    is obviously a private key where a password was expected, could be caught at the door.
+5. **Per-identity rate limits as policy.** The limiter now gives each service identity its own
+   budget; it does not yet let an operator set a *different* budget for a particular identity,
+   which is what a known-chatty deployment actually needs.
 
 ### Correctness and operations
 
-7. **A real load generator on separate hardware**, so the application's actual ceiling is known
+6. **A real load generator on separate hardware**, so the application's actual ceiling is known
    rather than the harness's.
-8. **Backup and restore as a tested path.** `DEPLOYMENT.md` describes it; nothing exercises it.
+7. **Backup and restore as a tested path.** `DEPLOYMENT.md` describes it; nothing exercises it.
    A backup nobody has restored is not a backup.
-9. **Postgres as an alternative store.** SQLite is the right default for one box and the wrong
+8. **Postgres as an alternative store.** SQLite is the right default for one box and the wrong
    answer for two. The EF model is portable; the pragma interceptor and the audit append are
    what would need attention.
-10. **Structured health detail.** `/healthz` returns a bare 200. It could report master key
-    readiness, migration state and chain verification separately.
+9. **Structured health detail.** `/healthz` returns a bare 200. It could report master key
+   readiness, migration state and chain verification separately.
+10. **A startup check that the forwarded-headers configuration is reachable.** The parse is
+    validated now, but nothing tells an operator that the proxy in front of them is connecting
+    from an address they did not name - which is the failure F2 hid for so long, in a different
+    disguise.
 
 ### Interface
 

@@ -13,7 +13,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -235,14 +234,27 @@ public sealed class Program
 
         // Behind a reverse proxy the real client address arrives in a header. Trusting it
         // blindly would let any client spoof its own address and defeat the IP allowlist and
-        // the per-address rate limits, so the proxy list is configured explicitly and the
-        // defaults (which trust only loopback) are kept until an operator widens them.
-        services.Configure<ForwardedHeadersOptions>(options =>
-        {
-            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            options.ForwardLimit = 1;
-            builder.Configuration.GetSection("Keystead:ReverseProxy").Bind(options);
-        });
+        // the per-address rate limits, so the proxies are named explicitly and the defaults
+        // (which trust only loopback) stand until an operator names one.
+        //
+        // The strings are parsed here rather than bound onto ForwardedHeadersOptions, because
+        // the configuration binder cannot construct an IPNetwork and dropped every entry
+        // without saying so. See ReverseProxyOptions for what that cost.
+        var reverseProxy = new ReverseProxyOptions();
+        builder.Configuration.GetSection(ReverseProxyOptions.SectionName).Bind(reverseProxy);
+
+        services.AddOptions<ReverseProxyOptions>()
+            .Bind(builder.Configuration.GetSection(ReverseProxyOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(
+                options => ReverseProxyConfiguration.Validate(options) is null,
+                ReverseProxyConfiguration.Validate(reverseProxy) ?? string.Empty)
+            .ValidateOnStart();
+
+        // Throws on an unusable configuration, which is the intent: a process that will not
+        // start is better than one serving traffic it should not trust.
+        services.Configure<ForwardedHeadersOptions>(
+            options => ReverseProxyConfiguration.Apply(reverseProxy, options));
 
         services.AddDataProtection()
             .SetApplicationName("Keystead");
@@ -405,7 +417,7 @@ public sealed class Program
             // well below what a healthy deployment needs.
             options.AddPolicy("token", context =>
                 RateLimitPartition.GetFixedWindowLimiter(
-                    ClientKey(context),
+                    RateLimitKeys.Caller(context),
                     _ => new FixedWindowRateLimiterOptions
                     {
                         PermitLimit = limits.TokenIssuancesPerMinute,
@@ -417,7 +429,7 @@ public sealed class Program
             // generous ceiling whose job is to make a mass-exfiltration burst visible and slow.
             options.AddPolicy("secret-read", context =>
                 RateLimitPartition.GetTokenBucketLimiter(
-                    ClientKey(context),
+                    RateLimitKeys.Caller(context),
                     _ => new TokenBucketRateLimiterOptions
                     {
                         TokenLimit = limits.SecretReadBurst,
@@ -427,27 +439,39 @@ public sealed class Program
                         AutoReplenishment = true,
                     }));
 
-            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    ClientKey(context),
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = limits.GlobalRequestsPerMinute,
-                        Window = TimeSpan.FromMinutes(1),
-                        QueueLimit = 0,
-                    }));
+            // Two limiters, chained, because they answer different questions.
+            //
+            // The inner one is per caller and exists for fairness: a busy caller spends its own
+            // budget rather than everybody's.
+            //
+            // The outer one is per source address and exists as the boundary. A caller key can
+            // be a bearer token the limiter has not verified yet (see RateLimitKeys), so on its
+            // own it would let someone mint a fresh bucket per request by rotating fabricated
+            // tokens. The address cannot be chosen by the client, so this is the limiter that
+            // bounds absolute volume from one place. It sits above the per-caller budget, which
+            // is why its ceiling is the higher of the two.
+            options.GlobalLimiter = PartitionedRateLimiter.CreateChained(
+                PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        RateLimitKeys.Caller(context),
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = limits.GlobalRequestsPerMinute,
+                            Window = TimeSpan.FromMinutes(1),
+                            QueueLimit = 0,
+                        })),
+                PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        RateLimitKeys.Address(context),
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = limits.RequestsPerMinutePerAddress,
+                            Window = TimeSpan.FromMinutes(1),
+                            QueueLimit = 0,
+                        })));
         });
     }
 
-    /// <summary>
-    /// The rate-limit partition key: the authenticated principal when there is one, otherwise
-    /// the remote address.
-    /// </summary>
-    /// <remarks>
-    /// Partitioning an authenticated request by principal rather than address matters behind
-    /// NAT, where a whole office shares one address and a single busy deployment would
-    /// otherwise throttle everyone beside it.
-    /// </remarks>
     /// <summary>
     /// A fixed window over unsafe methods only, keyed by client.
     /// </summary>
@@ -472,7 +496,7 @@ public sealed class Program
         }
 
         return RateLimitPartition.GetFixedWindowLimiter(
-            ClientKey(context),
+            RateLimitKeys.Caller(context),
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = permits,
@@ -480,11 +504,6 @@ public sealed class Program
                 QueueLimit = 0,
             });
     }
-
-    private static string ClientKey(HttpContext context) =>
-        context.User.Identity?.IsAuthenticated == true
-            ? $"user:{context.User.Identity.Name}"
-            : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
 
     private static void ConfigurePipeline(WebApplication app)
     {

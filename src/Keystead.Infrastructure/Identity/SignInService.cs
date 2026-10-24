@@ -24,7 +24,7 @@ namespace Keystead.Infrastructure.Identity;
 /// </para>
 /// <para>
 /// <b>No user enumeration.</b> An unknown address runs the same Argon2id verification as a
-/// known one, against a decoy digest generated at construction. Skipping the hash when the
+/// known one, against a decoy digest generated once for the process. Skipping the hash when the
 /// account does not exist would make the response measurably faster, and the sign-in form
 /// would become a way to test whether an address has an account here. The decoy also means a
 /// deactivated or locked account costs the same as a live one.

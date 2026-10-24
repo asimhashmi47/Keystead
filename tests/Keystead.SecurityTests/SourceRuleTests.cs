@@ -165,6 +165,25 @@ public sealed class SourceRuleTests
     }
 
     [Fact]
+    public void EveryAssetReferenceCarriesAContentHash()
+    {
+        // These URLs are served with a year-long immutable lifetime, which is only safe
+        // because a changed file means a changed URL. A reference added without
+        // asp-append-version would be cached by every visitor for a year — the sort of thing
+        // that is invisible in development, where nothing is cached, and permanent in
+        // production.
+        var hits = Matches(
+            new Regex(
+                @"<(?:link|script)(?![^>]*asp-append-version)[^>]*(?:href|src)\s*=\s*""~?/(?:css|js)/",
+                RegexOptions.IgnoreCase),
+            ".cshtml");
+
+        Assert.True(
+            hits.Count == 0,
+            $"Found unversioned asset references:{Environment.NewLine}{string.Join(Environment.NewLine, hits)}");
+    }
+
+    [Fact]
     public void NothingIsLoadedFromAThirdParty()
     {
         // Self-hosting every asset is a policy requirement, not a preference: the CSP names

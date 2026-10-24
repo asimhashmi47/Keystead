@@ -82,12 +82,34 @@ public sealed class SecurityHeadersMiddleware
             "usb=()",
             "xr-spatial-tracking=()");
 
-        // Nothing in Keystead is safe to cache. A secret rendered into a page that a shared
-        // proxy or a browser's back-forward cache retains is a disclosure, so no-store is
-        // applied to every response rather than only to the ones that obviously carry secrets.
-        headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
-        headers["Pragma"] = "no-cache";
-        headers["Expires"] = "0";
+        // Nothing Keystead generates is safe to cache. A secret rendered into a page that a
+        // shared proxy or a browser's back-forward cache retains is a disclosure, so no-store
+        // is the default for every response rather than only for the ones that obviously carry
+        // secret material.
+        //
+        // The exemption is the static asset tree, and it is written this way round on purpose:
+        // the rule is "no-store unless the path is one of these", never "no-store if the path
+        // looks sensitive". A new page is covered by default; a new asset directory has to be
+        // named here, where the decision is visible.
+        if (IsVersionedAsset(context.Request.Path))
+        {
+            // Safe for two reasons. The stylesheet and the scripts are referenced with a
+            // content hash in the query, which the layout appends, so a changed file is a
+            // changed URL and a year-long lifetime cannot serve a stale one. The two fonts are
+            // referenced from inside the stylesheet, which cannot be versioned that way, so
+            // their names are the version: replacing a font means a new filename, and the
+            // source rule suite fails if the stylesheet names a font file that is not present.
+            //
+            // None of these files holds secret material, which is the property that actually
+            // permits a shared cache to keep them.
+            headers["Cache-Control"] = "public, max-age=31536000, immutable";
+        }
+        else
+        {
+            headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
+            headers["Pragma"] = "no-cache";
+            headers["Expires"] = "0";
+        }
 
         // Kestrel announces itself by default. Version banners only help someone matching the
         // host against a list of known issues.
@@ -96,6 +118,30 @@ public sealed class SecurityHeadersMiddleware
         headers.Remove("X-AspNet-Version");
 
         return _next(context);
+    }
+
+    /// <summary>
+    /// Whether a path is a static asset served under a content-hashed URL.
+    /// </summary>
+    /// <param name="path">The request path.</param>
+    /// <returns>True when the response may be cached.</returns>
+    /// <remarks>
+    /// A closed list of prefixes, matched case-insensitively because the comparison decides
+    /// whether <c>no-store</c> is dropped and the filesystem underneath is not always
+    /// case-sensitive. <c>/favicon.ico</c> is named exactly: it is requested without a version
+    /// query by browsers that guess at it, and it is one file, not a tree.
+    /// </remarks>
+    public static bool IsVersionedAsset(PathString path)
+    {
+        if (!path.HasValue)
+        {
+            return false;
+        }
+
+        return path.StartsWithSegments("/css", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/js", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/fonts", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(path.Value, "/favicon.ico", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

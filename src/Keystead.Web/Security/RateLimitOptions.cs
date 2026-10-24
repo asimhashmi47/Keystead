@@ -59,12 +59,25 @@ public sealed class RateLimitOptions
     public int SecretReadsPerMinute { get; set; } = 60;
 
     /// <summary>
-    /// Requests of any kind allowed per client each minute.
+    /// Requests of any kind allowed per caller each minute.
     /// </summary>
     /// <remarks>
-    /// The backstop under every other policy. It is the one most likely to need raising,
-    /// because it is the one a shared source address saturates first.
+    /// The backstop under every other policy, partitioned per caller: a signed-in person, a
+    /// bearer token, or a source address when the request presents neither.
     /// </remarks>
     [Range(60, 100000)]
     public int GlobalRequestsPerMinute { get; set; } = 600;
+
+    /// <summary>
+    /// Requests of any kind allowed from one source address each minute.
+    /// </summary>
+    /// <remarks>
+    /// The outer ceiling, and the only one of these a client cannot influence. It has to sit
+    /// above <see cref="GlobalRequestsPerMinute"/>, because a single address legitimately
+    /// carries many callers once a proxy or a NAT gateway is in the path; it exists so that
+    /// the number of callers one address can claim to be is not also the number of budgets it
+    /// gets. Raise it with the size of the estate behind the proxy, not with the traffic.
+    /// </remarks>
+    [Range(60, 1000000)]
+    public int RequestsPerMinutePerAddress { get; set; } = 6000;
 }
