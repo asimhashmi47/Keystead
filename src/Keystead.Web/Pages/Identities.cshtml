@@ -31,7 +31,7 @@
 
 @if (Model.IssuedSecret is { } secret)
 {
-    <div class="card" style="margin-bottom: var(--space-8);">
+    <div class="card u-section">
         <div class="card__header">
             <h2>
                 @(Model.IssuedByRotation ? "New client secret" : "Identity created")
@@ -72,7 +72,7 @@
                 </p>
             }
 
-            <h3 style="margin-top: var(--space-6);">Using it</h3>
+            <h3 class="u-mt-6">Using it</h3>
 
             <div class="field">
                 <p class="field__label">.NET configuration</p>
@@ -83,8 +83,8 @@
     options.ClientSecret = builder.Configuration["KEYSTEAD_CLIENT_SECRET"]!;
 });</code></pre>
                 <p class="field__hint">
-                    The SDK arrives in M7. Keep the secret in an environment variable, never in
-                    <code>appsettings.json</code>.
+                    Keep the secret in an environment variable or your platform's secret
+                    store, never in <code>appsettings.json</code>.
                 </p>
             </div>
 
@@ -106,7 +106,7 @@ KEYSTEAD_CLIENT_SECRET=@secret</code></pre>
     </div>
 }
 
-<div class="card" style="margin-bottom: var(--space-8);">
+<div class="card u-section">
     <div class="card__header">
         <h2>@Model.Items.Count identit@(Model.Items.Count == 1 ? "y" : "ies")</h2>
     </div>
@@ -213,21 +213,21 @@ KEYSTEAD_CLIENT_SECRET=@secret</code></pre>
                                     <span class="field__hint">Never</span>
                                 }
                             </td>
-                            <td style="text-align: right;">
+                            <td class="u-end">
                                 @if (Model.CanManage && identity.IsActive)
                                 {
-                                    <div style="display: flex; gap: var(--space-2); justify-content: flex-end;">
+                                    <div class="u-row u-row--end">
                                         <form method="post" asp-page-handler="Rotate">
                                             <input type="hidden" name="identityId" value="@identity.Id" />
                                             <input type="hidden" name="overlapHours" value="24" />
-                                            <button class="btn btn--ghost btn--sm" type="submit">
+                                            <button class="btn btn--secondary btn--sm" type="submit">
                                                 Rotate secret
                                             </button>
                                         </form>
 
                                         <form method="post" asp-page-handler="Revoke">
                                             <input type="hidden" name="identityId" value="@identity.Id" />
-                                            <button class="btn btn--ghost btn--sm" type="submit">
+                                            <button class="btn btn--quiet-danger btn--sm" type="submit">
                                                 Revoke
                                             </button>
                                         </form>
@@ -273,7 +273,7 @@ KEYSTEAD_CLIENT_SECRET=@secret</code></pre>
                         <p class="field__label">Vaults it may reach</p>
                         @foreach (var vault in Model.Vaults)
                         {
-                            <label class="field__label" style="font-weight: 400;">
+                            <label class="field__label u-weight-normal">
                                 <input type="checkbox" name="Input.ScopedVaultIds" value="@vault.Id" />
                                 @vault.Name
                             </label>

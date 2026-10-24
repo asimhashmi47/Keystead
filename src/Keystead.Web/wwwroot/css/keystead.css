@@ -12,14 +12,31 @@
 /* ===========================================================================
    Typeface
    ---------------------------------------------------------------------------
-   The specification asks for a self-hosted variable font. Drop the woff2 into
-   wwwroot/fonts/ and these rules pick it up; until then the stack below renders
-   in the platform UI face, which is a deliberate fallback rather than a CDN call.
+   Mona Sans and Mona Sans Mono, self-hosted. Both are variable fonts under the
+   SIL Open Font License; the licence travels with them in wwwroot/fonts/OFL.txt.
+
+   Self-hosting is a Content Security Policy requirement here rather than a
+   preference: the policy names only 'self', so a font from someone else's host
+   would be blocked. It also means no third party learns who is signing in, and
+   no third party outage changes how the product reads.
+
+   The sans face carries an optical size axis. Browsers drive it automatically
+   from the rendered size, which is why small text here keeps its apertures open
+   and the display headings tighten up instead of looking inflated.
    =========================================================================== */
 @font-face {
     font-family: "Keystead Sans";
-    src: url("/fonts/inter-variable.woff2") format("woff2-variations");
-    font-weight: 100 900;
+    src: url("/fonts/keystead-sans.woff2") format("woff2-variations");
+    font-weight: 200 900;
+    font-display: swap;
+    font-style: normal;
+    size-adjust: 100%;
+}
+
+@font-face {
+    font-family: "Keystead Mono";
+    src: url("/fonts/keystead-mono.woff2") format("woff2-variations");
+    font-weight: 200 900;
     font-display: swap;
     font-style: normal;
 }
@@ -129,7 +146,7 @@
     --font-sans: "Keystead Sans", ui-sans-serif, system-ui, -apple-system,
                  "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue",
                  Arial, sans-serif;
-    --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", "JetBrains Mono",
+    --font-mono: "Keystead Mono", ui-monospace, "Cascadia Mono", "SF Mono",
                  Menlo, Consolas, monospace;
 
     --text-xs:   0.75rem;
@@ -202,6 +219,16 @@ html {
     text-size-adjust: 100%;
 }
 
+/*
+ * The hidden attribute has to win. The user agent sets `[hidden] { display: none }`
+ * at a lower precedence than any author rule, so a class like `.btn` that sets
+ * `display: inline-flex` quietly un-hides the element. The Copy button beside a
+ * masked secret was visible for exactly that reason.
+ */
+[hidden] {
+    display: none !important;
+}
+
 body {
     margin: 0;
     background: var(--color-bg);
@@ -214,6 +241,10 @@ body {
 
     /* Metrics and version numbers must not jitter as digits change. */
     font-variant-numeric: tabular-nums;
+
+    /* The sans face carries an opsz axis; this is the browser driving it from the
+       rendered size, which keeps small text open and large text tight. */
+    font-optical-sizing: auto;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -680,6 +711,23 @@ code, kbd, pre, samp {
 .badge--info    { background: var(--color-info-soft);    color: var(--color-info); }
 .badge--neutral { background: var(--color-surface-sunken); color: var(--color-text-secondary); }
 
+/*
+ * A badge that is also the control that removes the thing it names: a granted
+ * vault, shown as a chip with a cross. It keeps the badge's shape and colour and
+ * sheds the button chrome, so the affordance is the cross and the pointer rather
+ * than a second button outline inside a row of static chips.
+ */
+.badge--button {
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 500;
+}
+
+.badge--button:hover {
+    filter: brightness(0.96);
+}
+
 .badge__dot {
     width: 6px;
     height: 6px;
@@ -1121,4 +1169,311 @@ kbd {
 .sidebar__workspace-role {
     font-size: var(--text-sm);
     color: var(--color-text-muted);
+}
+
+/* ===========================================================================
+   Layout utilities
+   ---------------------------------------------------------------------------
+   A deliberately small, closed set. Every one of these existed first as a style
+   attribute in the markup, and every one of those was silently discarded by the
+   browser: the policy is `style-src 'self' 'nonce-...'` with no 'unsafe-inline',
+   and a style attribute cannot carry a nonce. The choice was to weaken the
+   policy or to move the declarations into the stylesheet, and weakening the
+   policy to straighten a margin is not a trade this product should make.
+
+   These are layout and rhythm only. Colour never appears here: a component that
+   needs a colour names a semantic token, and a component that needs a colour no
+   token names is a missing token.
+   =========================================================================== */
+
+/* Vertical rhythm between the major blocks of a page. */
+.u-section { margin-bottom: var(--space-8); }
+
+.u-mt-2 { margin-top: var(--space-2); }
+.u-mt-3 { margin-top: var(--space-3); }
+.u-mt-4 { margin-top: var(--space-4); }
+.u-mt-6 { margin-top: var(--space-6); }
+.u-ml-2 { margin-left: var(--space-2); }
+
+/* A control that fills its column: the primary action of a narrow auth card. */
+.u-block { width: 100%; }
+
+/* Numeric and action columns sit right so the eye can run down them. */
+.u-end { text-align: right; }
+
+/* A form that has to sit inside a line of flowing text. */
+.u-inline { display: inline; }
+
+/*
+ * Horizontal groups. `.u-row` is the common case: controls side by side with a
+ * single gap. The modifiers cover the three variations the product actually
+ * uses rather than every variation flexbox allows.
+ */
+.u-row {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.u-row--center { align-items: center; }
+.u-row--end { justify-content: flex-end; }
+.u-row--block { width: 100%; }
+
+.u-row--wrap {
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+/* The search field in the top bar: takes the free space, but stops short of
+   stretching across a wide display, where a very long input is hard to scan. */
+.u-row--grow {
+    flex: 1;
+    max-width: 32rem;
+}
+
+/* A column of prose or fields held to a comfortable measure. */
+.u-measure { max-width: 28rem; }
+
+.u-text-lg { font-size: var(--text-lg); }
+.u-text-xl { font-size: var(--text-xl); }
+
+/* A label whose job is to caption a checkbox rather than head a field. */
+.u-weight-normal { font-weight: 400; }
+
+/*
+ * The vault colour dot. One class per token rather than a style attribute
+ * carrying the token name, because the set of vault colours is closed and
+ * naming them here keeps the colour decision in the stylesheet.
+ */
+.dot--violet  { color: var(--badge-violet); }
+.dot--indigo  { color: var(--badge-indigo); }
+.dot--teal    { color: var(--badge-teal); }
+.dot--emerald { color: var(--badge-emerald); }
+.dot--amber   { color: var(--badge-amber); }
+.dot--rose    { color: var(--badge-rose); }
+.dot--sky     { color: var(--badge-sky); }
+
+/* ===========================================================================
+   The shell: search field and account control
+   =========================================================================== */
+
+/*
+ * The sidebar scrolls vertically when the navigation is taller than the window
+ * and never horizontally. Without this, one long address in the footer produced
+ * a horizontal scrollbar across the whole column.
+ */
+.sidebar { overflow-x: hidden; }
+
+.sidebar__link {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/*
+ * The search field. The icon and the shortcut sit inside the input's box rather
+ * than beside it, so the whole thing reads as one control: the shortcut is a
+ * property of the field, not a second button competing with it.
+ */
+.topbar__search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    max-width: 30rem;
+}
+
+.topbar__search-icon {
+    position: absolute;
+    left: var(--space-3);
+    color: var(--color-text-muted);
+    pointer-events: none;
+}
+
+.topbar__search-input {
+    padding-left: calc(var(--space-3) * 2 + 16px);
+    padding-right: 5.25rem;
+    background: var(--color-surface-sunken);
+    border-color: transparent;
+}
+
+.topbar__search-input:hover { background: var(--color-surface); }
+
+.topbar__search-input:focus {
+    background: var(--color-surface);
+    border-color: var(--color-focus);
+}
+
+/* Cleared by the input's own clear control, so the browser's does not double up. */
+.topbar__search-input::-webkit-search-cancel-button { display: none; }
+
+.topbar__shortcut {
+    position: absolute;
+    right: var(--space-2);
+    display: flex;
+    gap: 3px;
+    padding: var(--space-1);
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    opacity: 0.85;
+    transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.topbar__shortcut:hover { opacity: 1; }
+
+/* The account control, pushed to the far end of the bar. */
+.topbar__account {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: auto;
+    min-width: 0;
+}
+
+.account {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    transition: background var(--duration-fast) var(--ease-out);
+}
+
+.account:hover {
+    background: var(--color-surface-sunken);
+    text-decoration: none;
+}
+
+.account[aria-current="page"] { background: var(--color-primary-soft); }
+
+.account__avatar {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
+    background: var(--color-primary-soft);
+    color: var(--color-primary-text);
+    font-size: var(--text-xs);
+    font-weight: 650;
+    letter-spacing: 0.01em;
+}
+
+.account__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: var(--leading-tight);
+}
+
+.account__name {
+    font-size: var(--text-sm);
+    font-weight: 560;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.account__role {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+/* A button whose whole content is an icon: square, not a pill with one glyph in it. */
+.btn--icon {
+    padding: var(--space-2);
+    aspect-ratio: 1;
+}
+
+/*
+ * Below this width the bar is the menu toggle, the field and the avatar. The
+ * name, the role and the shortcut all go: on a phone there is no keyboard to
+ * press Ctrl+K with, and the name is one tap away on the profile page.
+ */
+@media (max-width: 720px) {
+    .account__text { display: none; }
+    .topbar__shortcut { display: none; }
+    .topbar__search-input { padding-right: var(--space-3); }
+}
+
+/* ===========================================================================
+   Motion
+   ---------------------------------------------------------------------------
+   Deliberately none on page entry.
+
+   An entrance animation on the page body means the content starts at opacity 0
+   and depends on the animation running to become visible. That is a bet on the
+   browser's animation clock, and it is a bet this product loses: in a
+   background tab the clock is throttled, and the page renders half-faded or not
+   at all. For a tool someone keeps open in a tab all day that is a real failure,
+   bought for a flourish nobody asked for.
+
+   So motion here lives only where it carries meaning and where its absence costs
+   nothing: hover and focus states, the reveal countdown, the palette opening.
+   Every one of those is a transition on an element that is already visible, and
+   the reduced-motion block above turns all of them off for anyone who has asked
+   for that.
+   =========================================================================== */
+
+/*
+ * A destructive action that lives in a row rather than at the end of a flow.
+ * A filled danger button in every row of a table turns the page red and stops
+ * meaning "careful"; this keeps the colour for the moment of intent — hover —
+ * and reads as a quiet control until then.
+ */
+.btn--quiet-danger {
+    background: transparent;
+    color: var(--color-danger);
+}
+
+.btn--quiet-danger:hover:not(:disabled) {
+    background: var(--color-danger-soft);
+    color: var(--color-danger-hover);
+}
+
+/*
+ * The grant control in a member's row: two selects and a button. It wraps rather
+ * than squeezing, because a vault whose name is cut in half is not a choice
+ * anyone can make.
+ */
+.grant {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.grant .select {
+    min-width: 9.5rem;
+    width: auto;
+}
+
+/* The widest cell in the members table decides the layout; the wrapper scrolls
+   if the window cannot hold it. */
+.table .cell--grants { min-width: 24rem; }
+
+/*
+ * A table whose columns each need room: the members list carries a role select,
+ * a two-factor state, a set of grant chips and a grant form on every row. Below
+ * this width the columns start cutting words in half, so the wrapper scrolls
+ * instead. Scrolling a table is a small cost; a select reading "Contrib" is not
+ * a control anyone can use.
+ */
+.table--wide { min-width: 70rem; }
+
+/*
+ * A select inside a table gets a floor. Table layout sizes a column to its
+ * content, and a select's content is a collapsed box rather than its longest
+ * option, so without this the role column renders wide enough for "ROLE" and
+ * the chosen value arrives as "Contrib".
+ */
+.table .select {
+    min-width: 9rem;
+    width: auto;
 }

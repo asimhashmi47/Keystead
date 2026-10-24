@@ -29,7 +29,7 @@
 
 @if (Model.OneTimePassword is { } password)
 {
-    <div class="card" style="margin-bottom: var(--space-8);">
+    <div class="card u-section">
         <div class="card__header">
             <h2>Account created</h2>
         </div>
@@ -57,20 +57,20 @@
     </div>
 }
 
-<div class="card" style="margin-bottom: var(--space-8);">
+<div class="card u-section">
     <div class="card__header">
         <h2>@Model.Items.Count member@(Model.Items.Count == 1 ? "" : "s")</h2>
     </div>
 
     <div class="table-wrap">
-        <table class="table">
+        <table class="table table--wide">
             <caption class="visually-hidden">Members of this workspace</caption>
             <thead>
                 <tr>
                     <th scope="col">Person</th>
                     <th scope="col">Role</th>
                     <th scope="col">Two-factor</th>
-                    <th scope="col">Vault access</th>
+                    <th class="cell--grants" scope="col">Vault access</th>
                     <th scope="col"><span class="visually-hidden">Actions</span></th>
                 </tr>
             </thead>
@@ -87,8 +87,7 @@
                             }
                         </td>
                         <td>
-                            <form method="post" asp-page-handler="ChangeRole"
-                                  style="display: flex; gap: var(--space-2); align-items: center;">
+                            <form class="u-row u-row--center" method="post" asp-page-handler="ChangeRole">
                                 <input type="hidden" name="userId" value="@member.UserId" />
 
                                 <label class="visually-hidden" for="role-@member.UserId">
@@ -126,7 +125,7 @@
                                 <span class="badge badge--neutral">Optional</span>
                             }
                         </td>
-                        <td>
+                        <td class="cell--grants">
                             @if (member.HasImplicitVaultAccess)
                             {
                                 <span class="badge badge--info"
@@ -142,13 +141,11 @@
                             {
                                 @foreach (var grant in member.Grants)
                                 {
-                                    <form method="post" asp-page-handler="RevokeGrant"
-                                          style="display: inline;">
+                                    <form class="u-inline" method="post" asp-page-handler="RevokeGrant">
                                         <input type="hidden" name="userId" value="@member.UserId" />
                                         <input type="hidden" name="vaultId" value="@grant.VaultId" />
-                                        <button class="badge @(grant.Permission == VaultPermission.Write ? "badge--success" : "badge--neutral")"
+                                        <button class="badge badge--button @(grant.Permission == VaultPermission.Write ? "badge--success" : "badge--neutral")"
                                                 type="submit"
-                                                style="border: none; cursor: pointer;"
                                                 title="Revoke access to @grant.VaultName">
                                             @grant.VaultName
                                             (@(grant.Permission == VaultPermission.Write ? "write" : "read"))
@@ -160,8 +157,7 @@
 
                             @if (!member.HasImplicitVaultAccess && Model.Vaults.Count > 0)
                             {
-                                <form method="post" asp-page-handler="Grant"
-                                      style="display: flex; gap: var(--space-2); margin-top: var(--space-2);">
+                                <form class="grant u-mt-2" method="post" asp-page-handler="Grant">
                                     <input type="hidden" name="userId" value="@member.UserId" />
 
                                     <label class="visually-hidden" for="grant-@member.UserId">
@@ -185,7 +181,7 @@
                                         </option>
                                     </select>
 
-                                    <button class="btn btn--ghost btn--sm" type="submit">Grant</button>
+                                    <button class="btn btn--secondary btn--sm" type="submit">Grant</button>
                                 </form>
 
                                 @if (member.Role == WorkspaceRole.Reader)
@@ -196,10 +192,10 @@
                                 }
                             }
                         </td>
-                        <td style="text-align: right;">
+                        <td class="u-end">
                             <form method="post" asp-page-handler="Remove">
                                 <input type="hidden" name="userId" value="@member.UserId" />
-                                <button class="btn btn--ghost btn--sm" type="submit">Remove</button>
+                                <button class="btn btn--quiet-danger btn--sm" type="submit">Remove</button>
                             </form>
                         </td>
                     </tr>

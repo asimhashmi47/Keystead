@@ -25,16 +25,16 @@
 
 @if (Model.View is { } profile)
 {
-    <div class="grid grid--metrics" style="margin-bottom: var(--space-8);">
+    <div class="grid grid--metrics u-section">
         <div class="metric">
             <p class="metric__label">Signed in as</p>
-            <p class="metric__value" style="font-size: var(--text-lg);">@profile.DisplayName</p>
+            <p class="metric__value u-text-lg">@profile.DisplayName</p>
             <p class="metric__hint">@profile.Email</p>
         </div>
 
         <div class="metric">
             <p class="metric__label">Two-factor</p>
-            <p class="metric__value" style="font-size: var(--text-xl);">
+            <p class="metric__value u-text-xl">
                 @if (profile.MfaEnabled)
                 {
                     <span class="badge badge--success">
@@ -62,7 +62,7 @@
 
         <div class="metric">
             <p class="metric__label">Password last changed</p>
-            <p class="metric__value" style="font-size: var(--text-lg);">
+            <p class="metric__value u-text-lg">
                 <time datetime="@profile.PasswordChangedUtc.ToString("O")">
                     @profile.PasswordChangedUtc.ToString("d MMM yyyy")
                 </time>
@@ -77,7 +77,7 @@
         </div>
     </div>
 
-    <div class="card" style="margin-bottom: var(--space-8);">
+    <div class="card u-section">
         <div class="card__header">
             <h2>Change your password</h2>
         </div>
@@ -116,7 +116,7 @@
 
                 <button class="btn btn--primary" type="submit">Change password</button>
 
-                <p class="field__hint" style="margin-top: var(--space-3);">
+                <p class="field__hint u-mt-3">
                     Every other session is signed out when you change your password.
                 </p>
             </form>

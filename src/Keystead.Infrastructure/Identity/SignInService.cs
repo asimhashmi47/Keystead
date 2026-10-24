@@ -49,7 +49,30 @@ public sealed class SignInService : ISignInService
     private readonly IAuditChain _audit;
     private readonly IClock _clock;
     private readonly SessionOptions _sessions;
-    private readonly string _decoyPasswordHash;
+    /// <summary>
+    /// The decoy digest, computed once for the process.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Verified against when no account matches the address, so the work done for an unknown
+    /// address is indistinguishable from the work done for a known one. Its plaintext is a
+    /// random value that is discarded, so no submitted password can ever match it.
+    /// </para>
+    /// <para>
+    /// Static and lazy, and both parts matter. This service is scoped, so computing the decoy
+    /// in the constructor ran a full Argon2id hash — 64 MiB and roughly a third of a second —
+    /// on every request that merely injected the service, including an anonymous GET of the
+    /// sign-in page. That is a twenty-fold slowdown on a page that does no work, and it hands
+    /// an unauthenticated caller a cheap way to spend the server's memory and CPU.
+    /// </para>
+    /// <para>
+    /// Caching it costs nothing in return: the decoy is compared against a submitted password
+    /// that can never match it, so a value fixed for the process lifetime tells an attacker
+    /// exactly as much as a fresh one, which is nothing. The race here is benign — two threads
+    /// may each compute one and one wins — and is cheaper than a lock on the common path.
+    /// </para>
+    /// </remarks>
+    private static string? _decoyPasswordHash;
 
     /// <summary>Creates the service.</summary>
     /// <param name="db">The database.</param>
@@ -85,11 +108,14 @@ public sealed class SignInService : ISignInService
         _clock = clock;
         _sessions = sessions.Value;
 
-        // The decoy digest. Verified against when no account matches, so the work done is
-        // indistinguishable from a real verification. Its plaintext is a random value that is
-        // thrown away, so no submitted password can ever match it.
-        _decoyPasswordHash = _passwords.Hash(Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
     }
+
+    /// <summary>Returns the process-wide decoy digest, computing it on first use.</summary>
+    /// <param name="passwords">The hasher to compute it with.</param>
+    /// <returns>A valid digest whose plaintext was discarded.</returns>
+    private static string Decoy(IPasswordHasher passwords) =>
+        _decoyPasswordHash ??= passwords.Hash(
+            Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
 
     /// <inheritdoc />
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
@@ -111,7 +137,7 @@ public sealed class SignInService : ISignInService
             .ConfigureAwait(false);
 
         // Always verify something. See the remarks on this class.
-        var storedHash = user?.PasswordHash ?? _decoyPasswordHash;
+        var storedHash = user?.PasswordHash ?? Decoy(_passwords);
         var verification = _passwords.Verify(password, storedHash);
 
         if (user is null)
@@ -655,8 +681,14 @@ public sealed class SignInService : ISignInService
             return false;
         }
 
-        session.LastSeenUtc = now;
-        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        // Only written when it has actually moved on. See SessionOptions.LastSeenPrecision:
+        // writing it on every request makes every page view a database write, and on a store
+        // with one writer that is the ceiling for everything else the application does.
+        if (now - session.LastSeenUtc >= _sessions.LastSeenPrecision)
+        {
+            session.LastSeenUtc = now;
+            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
 
         return true;
     }

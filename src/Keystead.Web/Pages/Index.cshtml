@@ -17,7 +17,7 @@
     </p>
 </div>
 
-<div class="grid grid--metrics" style="margin-bottom: var(--space-8);">
+<div class="grid grid--metrics u-section">
     <div class="metric">
         <p class="metric__label">Secrets</p>
         <p class="metric__value">@Model.SecretCount</p>
@@ -51,7 +51,7 @@
 
 @if (Model.NeedsAttention.Count > 0)
 {
-    <div class="card" style="margin-bottom: var(--space-8);">
+    <div class="card u-section">
         <div class="card__header">
             <h2>Needs attention</h2>
         </div>
@@ -142,8 +142,7 @@
                     {
                         <tr>
                             <td>
-                                <span class="badge badge--neutral"
-                                      style="color: var(--badge-@vault.ColorToken);">
+                                <span class="badge badge--neutral dot--@vault.ColorToken">
                                     <span class="badge__dot" aria-hidden="true"></span>
                                 </span>
                                 <a href="/vaults/@vault.Slug">@vault.Name</a>

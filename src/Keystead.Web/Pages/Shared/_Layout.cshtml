@@ -62,14 +62,12 @@
                 <div class="sidebar__workspace">
                     <p class="sidebar__workspace-label">Workspace</p>
                     <p class="sidebar__workspace-name">@workspace.Name</p>
-                    <p class="sidebar__workspace-role">@workspace.Role</p>
 
                     @if (memberships.Count > 1)
                     {
                         @* Shown only when there is something to switch to, so a single-workspace
                            installation is not given a control that does nothing. *@
-                        <form method="post" action="/workspace/switch"
-                              style="margin-top: var(--space-2);">
+                        <form class="u-mt-2" method="post" action="/workspace/switch">
                             <label class="visually-hidden" for="workspace-switch">
                                 Switch workspace
                             </label>
@@ -82,8 +80,7 @@
                                     </option>
                                 }
                             </select>
-                            <button class="btn btn--secondary btn--sm" type="submit"
-                                    style="margin-top: var(--space-2); width: 100%;">
+                            <button class="btn btn--secondary btn--sm u-mt-2 u-block" type="submit">
                                 Switch
                             </button>
                         </form>
@@ -92,7 +89,7 @@
             }
 
             <nav class="sidebar__section" aria-label="Main">
-                <p class="sidebar__label">Workspace</p>
+                <p class="sidebar__label">Overview</p>
                 <ul class="sidebar__nav">
                     <li>
                         <a class="sidebar__link" href="/" aria-current="@Current("/Index")">
@@ -161,15 +158,6 @@
                 </ul>
             </nav>
 
-            <div class="sidebar__footer">
-                <a class="sidebar__link" href="/profile" aria-current="@Current("/Profile/Index")">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="8.5" r="3.6" />
-                        <path d="M5 20c0-3.6 3.1-6.4 7-6.4s7 2.8 7 6.4" />
-                    </svg>
-                    @(User.Identity?.Name ?? "Profile")
-                </a>
-            </div>
         </aside>
 
         <div class="main">
@@ -185,21 +173,56 @@
                     <span class="visually-hidden">Toggle navigation</span>
                 </button>
 
-                <form class="topbar__search" method="get" action="/search" role="search"
-                      style="flex: 1; max-width: 32rem;">
+                <form class="topbar__search" method="get" action="/search" role="search">
                     <label class="visually-hidden" for="global-search">Search secrets and vaults</label>
-                    <input class="input"
+
+                    <svg class="topbar__search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="m20 20-3.6-3.6" />
+                    </svg>
+
+                    <input class="input topbar__search-input"
                            id="global-search"
                            name="q"
                            type="search"
-                           placeholder="Search names, or press Ctrl+K"
+                           placeholder="Search secrets and vaults"
                            autocomplete="off" />
+
+                    @* The shortcut sits inside the field because that is where it is read:
+                       it describes the field, not a separate control beside it. It is still a
+                       real button, so the palette is reachable by pointer as well as by key. *@
+                    <button class="topbar__shortcut" type="button" data-action="open-palette">
+                        <kbd>Ctrl</kbd><kbd>K</kbd>
+                        <span class="visually-hidden">Open the command palette</span>
+                    </button>
                 </form>
 
-                <button class="btn btn--ghost btn--sm" type="button" data-action="open-palette">
-                    <kbd>Ctrl</kbd><kbd>K</kbd>
-                    <span class="visually-hidden">Open the command palette</span>
-                </button>
+                @if (currentWorkspace is { } current)
+                {
+                    <div class="topbar__account">
+                        <a class="account" href="/profile" aria-current="@Current("/Profile/Index")">
+                            <span class="account__avatar" aria-hidden="true">@Initials(User.Identity?.Name)</span>
+                            <span class="account__text">
+                                <span class="account__name">@(User.Identity?.Name ?? "Account")</span>
+                                <span class="account__role">@current.Role</span>
+                            </span>
+                        </a>
+
+                        @* A link to the confirmation page rather than a form that signs out
+                           on click. Signing out is cheap to undo but annoying to do by
+                           accident, and the page is also what makes the action a POST with a
+                           token rather than something a cross-site image request could
+                           trigger. *@
+                        <a class="btn btn--ghost btn--sm btn--icon" href="/sign-out" title="Sign out">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M15 17v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v2" />
+                                <path d="M19 12H9m10 0-3-3m3 3-3 3" />
+                            </svg>
+                            <span class="visually-hidden">Sign out</span>
+                        </a>
+                    </div>
+                }
+
             </header>
 
             <main class="content" id="main">
@@ -253,4 +276,30 @@
         || string.Equals((string?)ViewContext.RouteData.Values["page"], page, System.StringComparison.OrdinalIgnoreCase)
             ? "page"
             : null;
+
+    // The monogram on the account control. The principal carries the sign-in address rather
+    // than a display name, so this takes the local part and splits it on the separators people
+    // actually use in one: "ada.lovelace@..." gives AL, "ada@..." gives A.
+    //
+    // It is a monogram and nothing turns on it, which is why a convention is good enough here
+    // and would not be anywhere a name is asserted rather than decorated.
+    private static string Initials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return "?";
+        }
+
+        var local = name.Split('@', 2)[0];
+        var parts = local.Split([' ', '.', '_', '-', '+'], System.StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length == 0)
+        {
+            return "?";
+        }
+
+        return parts.Length >= 2
+            ? string.Concat(char.ToUpperInvariant(parts[0][0]), char.ToUpperInvariant(parts[1][0]))
+            : char.ToUpperInvariant(parts[0][0]).ToString();
+    }
 }

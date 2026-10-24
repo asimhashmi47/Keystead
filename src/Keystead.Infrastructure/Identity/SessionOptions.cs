@@ -35,4 +35,25 @@ public sealed class SessionOptions
     /// </remarks>
     [Range(typeof(TimeSpan), "00:01:00", "01:00:00")]
     public TimeSpan StepUpWindow { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// How stale the recorded last-seen time is allowed to get before it is written again.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every authenticated request touches its session, and writing the timestamp on every one
+    /// of them turns each page view into a database write. On SQLite, which takes a single
+    /// writer at a time, that makes the write the throughput ceiling for the whole
+    /// application: a load test found it pinned at roughly forty requests a second regardless
+    /// of what the requests were doing, with the processor mostly idle.
+    /// </para>
+    /// <para>
+    /// Coarsening the timestamp removes the write from the common path without changing what
+    /// it is for. The idle timeout is measured in tens of minutes; the cost of this is that a
+    /// session may expire up to this much earlier than it strictly should, which at a minute
+    /// against thirty is not a difference anyone can perceive.
+    /// </para>
+    /// </remarks>
+    [Range(typeof(TimeSpan), "00:00:00", "00:05:00")]
+    public TimeSpan LastSeenPrecision { get; set; } = TimeSpan.FromMinutes(1);
 }

@@ -1,7 +1,7 @@
 # Keystead — Implementation Plan
 
 A self-hostable secrets manager (.NET 10, ASP.NET Core Razor Pages, EF Core, SQLite).
-Concept-comparable to Azure Key Vault, scoped to an MVP a team can actually run.
+Concept-comparable to Azure Key Vault, scoped to something a small team can actually run.
 
 ---
 

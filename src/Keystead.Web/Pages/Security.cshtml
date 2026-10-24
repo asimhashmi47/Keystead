@@ -13,10 +13,10 @@
     </p>
 </div>
 
-<div class="grid grid--metrics" style="margin-bottom: var(--space-8);">
+<div class="grid grid--metrics u-section">
     <div class="metric">
         <p class="metric__label">Two-factor authentication</p>
-        <p class="metric__value" style="font-size: var(--text-xl);">
+        <p class="metric__value u-text-xl">
             @if (Model.MfaEnabled)
             {
                 <span class="badge badge--success">
@@ -105,7 +105,7 @@
                                 </time>
                                 @if (session.IsCurrent)
                                 {
-                                    <span class="badge badge--info" style="margin-left: var(--space-2);">
+                                    <span class="badge badge--info u-ml-2">
                                         This device
                                     </span>
                                 }
@@ -117,7 +117,7 @@
                             </td>
                             <td><code>@session.CreatedIp</code></td>
                             <td>@session.UserAgent</td>
-                            <td style="text-align: right;">
+                            <td class="u-end">
                                 @if (!session.IsCurrent)
                                 {
                                     <form method="post" asp-page-handler="Revoke">

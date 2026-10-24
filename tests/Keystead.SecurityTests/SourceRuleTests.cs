@@ -114,6 +114,57 @@ public sealed class SourceRuleTests
     }
 
     [Fact]
+    public void ThereAreNoInlineStyleAttributes()
+    {
+        // The policy is style-src 'self' 'nonce-...' with no 'unsafe-inline', and a style
+        // attribute cannot carry a nonce, so the browser discards every one of these. The
+        // failure is silent: the page still renders, just with the margin or the alignment
+        // quietly missing, which is exactly the kind of thing that survives review. The fix is
+        // a class in the stylesheet, never 'unsafe-inline' in the policy.
+        var hits = Matches(
+            new Regex(@"\sstyle\s*=\s*""[^""]+""", RegexOptions.IgnoreCase),
+            ".cshtml");
+
+        Assert.True(hits.Count == 0, $"Found inline style attributes:{Environment.NewLine}{string.Join(Environment.NewLine, hits)}");
+    }
+
+    [Fact]
+    public void TheSelfHostedFontsArePresent()
+    {
+        // The stylesheet names these files and the policy forbids fetching a font from anyone
+        // else, so a missing file is not a fallback: it is the product rendering in whatever
+        // the platform happens to offer. That failure is silent too, and this is what catches
+        // it before a release does.
+        var stylesheet = Path.Combine(
+            RepositoryRoot, "src", "Keystead.Web", "wwwroot", "css", "keystead.css");
+
+        var css = File.ReadAllText(stylesheet);
+        var referenced = Regex.Matches(css, @"url\(""(/fonts/[^""]+)""\)")
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.NotEmpty(referenced);
+
+        foreach (var reference in referenced)
+        {
+            var path = Path.Combine(
+                RepositoryRoot,
+                "src",
+                "Keystead.Web",
+                "wwwroot",
+                reference.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+
+            Assert.True(File.Exists(path), $"The stylesheet asks for {reference}, which is not in wwwroot.");
+        }
+
+        // An open font licence has to travel with the files it covers.
+        Assert.True(
+            File.Exists(Path.Combine(RepositoryRoot, "src", "Keystead.Web", "wwwroot", "fonts", "OFL.txt")),
+            "The font licence is missing from wwwroot/fonts.");
+    }
+
+    [Fact]
     public void NothingIsLoadedFromAThirdParty()
     {
         // Self-hosting every asset is a policy requirement, not a preference: the CSP names

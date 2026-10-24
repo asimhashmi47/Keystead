@@ -165,7 +165,7 @@ Legend: **Done** — implemented and tested. **Partial** — implemented, with t
 | Requirement | Status | Notes |
 |---|---|---|
 | One-command local start | Done | `dotnet run` generates a dev key and migrates |
-| Dev workspace seeded in Development | Partial | The first-run wizard is the path; no pre-seeded demo data |
+| Dev workspace seeded in Development | Partial | The first-run wizard is the path; no pre-seeded data |
 | Client SDK sample reading `ConnectionStrings:Default` | Done | `samples/Keystead.Sample.Web` |
 | `keystead run -- dotnet run` | Done | `verify-sdk-cli.py` asserts injection and exit-code propagation |
 | OpenAPI for `/api/v1`, authenticated in Production | Done | `/openapi/v1.json`, `RequireAuthorization` in Production |

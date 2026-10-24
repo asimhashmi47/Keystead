@@ -56,7 +56,7 @@
 }
 else
 {
-    <div class="card" style="margin-bottom: var(--space-8);">
+    <div class="card u-section">
         <div class="card__header">
             <h2>@Model.Items.Count vault@(Model.Items.Count == 1 ? "" : "s")</h2>
 
@@ -83,8 +83,7 @@ else
                     {
                         <tr>
                             <td>
-                                <span class="badge badge--neutral"
-                                      style="color: var(--badge-@vault.ColorToken);">
+                                <span class="badge badge--neutral dot--@vault.ColorToken">
                                     <span class="badge__dot" aria-hidden="true"></span>
                                 </span>
                                 <a href="/vaults/@vault.Slug"><strong>@vault.Name</strong></a>

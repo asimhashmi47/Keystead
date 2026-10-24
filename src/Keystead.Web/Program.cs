@@ -319,7 +319,7 @@ public sealed class Program
 
         services.AddRouting(options => options.LowercaseUrls = true);
 
-        ConfigureRateLimiting(services);
+        ConfigureRateLimiting(services, builder.Configuration);
 
         services.AddHealthChecks();
 
@@ -363,34 +363,43 @@ public sealed class Program
         services.AddCors(options => options.AddDefaultPolicy(policy => policy.DisallowCredentials()));
     }
 
-    private static void ConfigureRateLimiting(IServiceCollection services)
+    private static void ConfigureRateLimiting(IServiceCollection services, ConfigurationManager configuration)
     {
+        // Bound and validated at startup, so a nonsensical ceiling is a startup failure
+        // rather than a surprise the first time traffic arrives.
+        services.AddOptions<RateLimitOptions>()
+            .Bind(configuration.GetSection(RateLimitOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        var limits = new RateLimitOptions();
+        configuration.GetSection(RateLimitOptions.SectionName).Bind(limits);
+
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-            // Sign-in: tight, per client address. Combined with the per-account progressive
-            // lockout this bounds both "many guesses at one account" and "one guess at many
-            // accounts", which a per-account limit alone would miss.
+            // Sign-in: tight, per client address, and only on the attempt itself. Combined
+            // with the per-account progressive lockout this bounds both "many guesses at one
+            // account" and "one guess at many accounts", which a per-account limit alone would
+            // miss.
+            //
+            // Counting the GET as well would be a denial of service against the user rather
+            // than the attacker: a Razor Pages attribute covers every handler on the page, so
+            // ten views of the form — a few reloads, a browser prefetch, a password manager
+            // opening it — would spend the whole budget and refuse the sign-in that follows.
+            // The global limiter still covers the page itself.
             options.AddPolicy("sign-in", context =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    ClientKey(context),
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 10,
-                        Window = TimeSpan.FromMinutes(5),
-                        QueueLimit = 0,
-                    }));
+                AttemptsOnly(
+                    context,
+                    limits.SignInAttemptsPerFiveMinutes,
+                    TimeSpan.FromMinutes(5)));
 
             options.AddPolicy("mfa", context =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    ClientKey(context),
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 10,
-                        Window = TimeSpan.FromMinutes(5),
-                        QueueLimit = 0,
-                    }));
+                AttemptsOnly(
+                    context,
+                    limits.MfaAttemptsPerFiveMinutes,
+                    TimeSpan.FromMinutes(5)));
 
             // Token issuance is a deliberate cost (it hashes a client secret), so it is capped
             // well below what a healthy deployment needs.
@@ -399,7 +408,7 @@ public sealed class Program
                     ClientKey(context),
                     _ => new FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = 30,
+                        PermitLimit = limits.TokenIssuancesPerMinute,
                         Window = TimeSpan.FromMinutes(1),
                         QueueLimit = 0,
                     }));
@@ -411,8 +420,8 @@ public sealed class Program
                     ClientKey(context),
                     _ => new TokenBucketRateLimiterOptions
                     {
-                        TokenLimit = 120,
-                        TokensPerPeriod = 60,
+                        TokenLimit = limits.SecretReadBurst,
+                        TokensPerPeriod = limits.SecretReadsPerMinute,
                         ReplenishmentPeriod = TimeSpan.FromMinutes(1),
                         QueueLimit = 0,
                         AutoReplenishment = true,
@@ -423,7 +432,7 @@ public sealed class Program
                     ClientKey(context),
                     _ => new FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = 600,
+                        PermitLimit = limits.GlobalRequestsPerMinute,
                         Window = TimeSpan.FromMinutes(1),
                         QueueLimit = 0,
                     }));
@@ -439,6 +448,39 @@ public sealed class Program
     /// NAT, where a whole office shares one address and a single busy deployment would
     /// otherwise throttle everyone beside it.
     /// </remarks>
+    /// <summary>
+    /// A fixed window over unsafe methods only, keyed by client.
+    /// </summary>
+    /// <param name="context">The request.</param>
+    /// <param name="permits">Attempts allowed in a window.</param>
+    /// <param name="window">The window length.</param>
+    /// <returns>The partition for this request.</returns>
+    /// <remarks>
+    /// A safe method gets no limiter from this policy, because reading a form is not an
+    /// attempt at anything. What this policy exists to bound is submissions.
+    /// </remarks>
+    private static RateLimitPartition<string> AttemptsOnly(
+        HttpContext context,
+        int permits,
+        TimeSpan window)
+    {
+        if (HttpMethods.IsGet(context.Request.Method)
+            || HttpMethods.IsHead(context.Request.Method)
+            || HttpMethods.IsOptions(context.Request.Method))
+        {
+            return RateLimitPartition.GetNoLimiter("safe");
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            ClientKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permits,
+                Window = window,
+                QueueLimit = 0,
+            });
+    }
+
     private static string ClientKey(HttpContext context) =>
         context.User.Identity?.IsAuthenticated == true
             ? $"user:{context.User.Identity.Name}"

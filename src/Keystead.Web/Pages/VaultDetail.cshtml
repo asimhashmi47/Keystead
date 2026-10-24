@@ -16,7 +16,7 @@
 
     <div class="page-header">
         <div class="page-header__title">
-            <span class="badge badge--neutral" style="color: var(--badge-@vault.ColorToken);">
+            <span class="badge badge--neutral dot--@vault.ColorToken">
                 <span class="badge__dot" aria-hidden="true"></span>
             </span>
             <h1>@vault.Name</h1>
@@ -48,11 +48,11 @@
         <div class="alert alert--danger" role="alert"><div>@Model.Error</div></div>
     }
 
-    <div class="card" style="margin-bottom: var(--space-8);">
+    <div class="card u-section">
         <div class="card__header">
             <h2>Secrets</h2>
 
-            <form method="get" style="display: flex; gap: var(--space-2); align-items: center;">
+            <form class="u-row u-row--center" method="get">
                 <label class="visually-hidden" for="q">Search secret names</label>
                 <input class="input input--sm" id="q" name="q" type="search"
                        placeholder="Search names" value="@Model.Search" />
@@ -230,7 +230,7 @@
 
                     <div class="field">
                         <label class="field__label" for="s-tagkey">Tag</label>
-                        <div style="display: flex; gap: var(--space-2);">
+                        <div class="u-row">
                             <input class="input" id="s-tagkey" placeholder="owner"
                                    asp-for="Input.TagKey" />
                             <input class="input" placeholder="platform-team"

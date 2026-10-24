@@ -15,7 +15,8 @@ namespace Keystead.SecurityTests;
 /// stops being true the first time someone reorders the middleware pipeline. These tests are
 /// the reason the claims in the README can be read as statements of fact.
 /// </remarks>
-public sealed class ResponseHeaderTests : IClassFixture<KeysteadTestFactory>
+[Collection(nameof(HostedAppCollection))]
+public sealed class ResponseHeaderTests
 {
     private readonly KeysteadTestFactory _factory;
 

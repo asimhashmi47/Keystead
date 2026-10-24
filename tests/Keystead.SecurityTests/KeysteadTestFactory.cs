@@ -102,3 +102,18 @@ public sealed class KeysteadTestFactory : WebApplicationFactory<Program>
         }
     }
 }
+
+/// <summary>
+/// The collection that owns the hosted application.
+/// </summary>
+/// <remarks>
+/// Every suite that needs a running pipeline joins this collection, so there is one host and
+/// one factory for all of them. Two <c>WebApplicationFactory</c> instances building the same
+/// entry point at the same time race over it, and the loser fails with "the entry point exited
+/// without ever building an IHost" — a confusing message for a plain concurrency problem.
+/// Sharing the host also stops the suites from paying for a second startup.
+/// </remarks>
+[Xunit.CollectionDefinition(nameof(HostedAppCollection), DisableParallelization = true)]
+public sealed class HostedAppCollection : Xunit.ICollectionFixture<KeysteadTestFactory>
+{
+}

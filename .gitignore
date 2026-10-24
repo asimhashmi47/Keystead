@@ -48,3 +48,9 @@ appsettings.*.Local.json
 ## Backups
 backups/
 *.bak
+
+# Credentials written by scripts/seed-workspace.py when populating a local instance.
+scripts/.seed-credentials.json
+scripts/.seed-session.json
+scripts/.load-test-results.json
+scripts/.pentest-results.json
