@@ -1,0 +1,89 @@
+# Keystead, behind Caddy for TLS.
+#
+# Run it with a master key in place:
+#
+#   openssl rand -base64 32 > ./secrets/keystead-master-key
+#   chmod 600 ./secrets/keystead-master-key
+#   docker compose up -d
+#
+# Back that file up before you store anything. Every secret in the database is encrypted under
+# it, and Keystead does not keep a copy: losing it means losing the data.
+
+services:
+  keystead:
+    build: .
+    restart: unless-stopped
+
+    # Not published to the host. Only Caddy reaches it, so there is no way to bypass TLS.
+    expose:
+      - "8080"
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+
+      # The proxy address, so forwarded headers are trusted from Caddy and nowhere else.
+      # Without this the IP allowlist and the per-address rate limits can be spoofed by any
+      # client willing to set a header.
+      Keystead__ReverseProxy__KnownNetworks__0: "172.16.0.0/12"
+
+    volumes:
+      # The database. A container filesystem is ephemeral, and a secrets database that
+      # disappears on redeploy is an outage with no recovery.
+      - keystead-data:/data
+
+      # The master key, mounted read-only from a file on the host. Never an environment
+      # variable in this file: anything that can read the compose file would then hold the key
+      # to every secret, and `docker inspect` prints the environment of a running container.
+      - ./secrets/keystead-master-key:/run/secrets/keystead-master-key:ro
+
+    # Nothing in the image needs to write to its own filesystem. The database is on a volume
+    # and the temp directory is mounted below, so the rest can be immutable.
+    read_only: true
+
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+    # Drops every Linux capability. Kestrel listens on 8080, so it never needs
+    # NET_BIND_SERVICE, and nothing else in the process needs any of the others.
+    cap_drop:
+      - ALL
+
+    security_opt:
+      # Stops the process gaining privileges through a setuid binary. There are none in a
+      # chiselled image, but this costs nothing and survives a base image change.
+      - no-new-privileges:true
+
+    healthcheck:
+      test: ["CMD", "/app/Keystead.Web", "--healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+
+    # A bound memory limit turns a leak into a restart rather than into the host swapping.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+    depends_on:
+      keystead:
+        condition: service_healthy
+
+volumes:
+  keystead-data:
+  caddy-data:
+  caddy-config:

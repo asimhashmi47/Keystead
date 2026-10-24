@@ -1,9 +1,9 @@
 using System;
 using System.Globalization;
 using System.Security.Cryptography;
-using OtpNet;
 using Keystead.Application.Cryptography;
 using Keystead.Application.Identity;
+using OtpNet;
 
 namespace Keystead.Infrastructure.Identity;
 

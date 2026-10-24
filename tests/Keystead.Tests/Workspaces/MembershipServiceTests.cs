@@ -83,7 +83,10 @@ public sealed class MembershipServiceTests : IDisposable
         {
             _db.Context.Workspaces.Add(new Workspace
             {
-                Id = id, Name = slug, Slug = slug, CreatedUtc = now,
+                Id = id,
+                Name = slug,
+                Slug = slug,
+                CreatedUtc = now,
             });
         }
 

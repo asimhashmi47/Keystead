@@ -1,0 +1,56 @@
+# Caddy in front of Keystead.
+#
+# Replace keystead.example.com with your own name. Caddy obtains and renews a certificate
+# automatically, which is most of why it is the suggested proxy here: a secrets manager that is
+# hard to put behind TLS tends to end up not behind TLS.
+
+keystead.example.com {
+	# Caddy sets X-Forwarded-For and X-Forwarded-Proto. Keystead trusts them only from the
+	# networks named in Keystead__ReverseProxy__KnownNetworks, which is why that setting
+	# matters: without it, the IP allowlist and the per-address rate limits could be spoofed by
+	# any client willing to set the header itself.
+	reverse_proxy keystead:8080 {
+		header_up X-Real-IP {remote_host}
+	}
+
+	# TLS 1.2 is the floor. Keystead also sends HSTS, so a browser that has visited once will
+	# refuse plain HTTP on its own.
+	tls {
+		protocols tls1.2 tls1.3
+	}
+
+	# Keystead sets its own security headers, including a strict nonce CSP. Caddy must not add
+	# or rewrite any of them: a proxy that helpfully injects its own CSP would break the nonce
+	# and block the application's own scripts.
+
+	encode gzip
+
+	# Bounded request body. Keystead enforces its own limit too; this stops a large upload
+	# reaching the application at all.
+	request_body {
+		max_size 2MB
+	}
+
+	log {
+		output stdout
+		format console
+
+		# The audit log is the record of who read what. These access logs are for traffic
+		# diagnosis, so the query string is dropped: secret names can appear there, and a name
+		# is metadata worth not scattering across log aggregators.
+		format filter {
+			wrap console
+			fields {
+				uri query {
+					delete *
+				}
+			}
+		}
+	}
+}
+
+# Plain HTTP exists only to redirect. Caddy does this by default for a named site; stated
+# explicitly so it is obvious nothing is served without TLS.
+http://keystead.example.com {
+	redir https://{host}{uri} permanent
+}

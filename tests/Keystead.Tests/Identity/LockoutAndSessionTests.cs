@@ -130,15 +130,15 @@ public sealed class LockoutAndSessionTests
     private static UserSession NewSession(
         DateTimeOffset created,
         DateTimeOffset? absoluteExpiry = null) => new()
-    {
-        Id = Guid.CreateVersion7(),
-        UserId = Guid.CreateVersion7(),
-        CreatedUtc = created,
-        LastSeenUtc = created,
-        AbsoluteExpiryUtc = absoluteExpiry ?? created.AddHours(12),
-        CreatedIp = "203.0.113.4",
-        UserAgent = "test",
-    };
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
+            CreatedUtc = created,
+            LastSeenUtc = created,
+            AbsoluteExpiryUtc = absoluteExpiry ?? created.AddHours(12),
+            CreatedIp = "203.0.113.4",
+            UserAgent = "test",
+        };
 
     [Fact]
     public void AFreshSession_IsActive()

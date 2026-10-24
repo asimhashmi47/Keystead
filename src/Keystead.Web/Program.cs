@@ -1,9 +1,10 @@
 using System;
+using System.Linq;
 using System.Threading.RateLimiting;
+using System.Threading.Tasks;
 using Keystead.Infrastructure;
 using Keystead.Infrastructure.Cryptography;
 using Keystead.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 using Keystead.Web.Api;
 using Keystead.Web.Security;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -14,6 +15,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -38,6 +40,15 @@ public static class Program
 
         try
         {
+            // A chiselled container image has no shell and no curl, so the health probe has
+            // to be the application itself. Handled before the host is built: it must not
+            // need a master key, a database, or anything else that could make a healthy
+            // process look unhealthy.
+            if (args.Contains("--healthcheck", StringComparer.Ordinal))
+            {
+                return RunHealthCheck();
+            }
+
             var app = Build(args);
             app.Run();
             return 0;
@@ -57,6 +68,40 @@ public static class Program
         finally
         {
             Log.CloseAndFlush();
+        }
+    }
+
+    /// <summary>
+    /// Probes the liveness endpoint from inside the container.
+    /// </summary>
+    /// <remarks>
+    /// Talks to loopback over plain HTTP on the port Kestrel listens on, which is why the
+    /// liveness endpoint is reachable without TLS and says nothing but that the process is up.
+    /// </remarks>
+    /// <returns>0 when healthy, 1 otherwise.</returns>
+    private static int RunHealthCheck()
+    {
+        var port = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
+
+        try
+        {
+            using var client = new System.Net.Http.HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(3),
+            };
+
+            using var response = client
+                .GetAsync(new Uri($"http://127.0.0.1:{port}/healthz"))
+                .GetAwaiter()
+                .GetResult();
+
+            return response.IsSuccessStatusCode ? 0 : 1;
+        }
+        catch (Exception ex) when (ex is System.Net.Http.HttpRequestException
+            or TaskCanceledException
+            or UriFormatException)
+        {
+            return 1;
         }
     }
 
@@ -266,6 +311,40 @@ public static class Program
 
         services.AddHealthChecks();
 
+        // The OpenAPI document describes /api/v1 for SDK and client generators. Whether it is
+        // exposed is decided in the pipeline: see MapOpenApiDocument.
+        services.AddOpenApi("v1", options =>
+        {
+            options.AddDocumentTransformer((document, _, _) =>
+            {
+                document.Info = new Microsoft.OpenApi.OpenApiInfo
+                {
+                    Title = "Keystead machine API",
+                    Version = "v1",
+                    Description =
+                        "Short-lived token authentication for applications reading secrets at "
+                        + "runtime. Obtain a token from /api/v1/token with client credentials, "
+                        + "then send it as a bearer token. Every response is no-store.",
+                };
+
+                document.Components ??= new Microsoft.OpenApi.OpenApiComponents();
+                document.Components.SecuritySchemes ??=
+                    new System.Collections.Generic.Dictionary<string, Microsoft.OpenApi.IOpenApiSecurityScheme>(System.StringComparer.Ordinal);
+
+                document.Components.SecuritySchemes["bearer"] =
+                    new Microsoft.OpenApi.OpenApiSecurityScheme
+                    {
+                        Type = Microsoft.OpenApi.SecuritySchemeType.Http,
+                        Scheme = "bearer",
+                        BearerFormat = "JWT",
+                        Description =
+                            "An ES256 token from /api/v1/token. Valid for minutes, not hours.",
+                    };
+
+                return System.Threading.Tasks.Task.CompletedTask;
+            });
+        });
+
         // CORS is denied unless an operator names an origin. The machine API is called by
         // servers, which do not need CORS at all; a wildcard here would only help a browser
         // page on someone else's origin use a victim's credentials.
@@ -392,8 +471,33 @@ public static class Program
         app.MapHealthChecks("/readyz").AllowAnonymous();
 
         app.MapMachineApi();
+        MapOpenApiDocument(app);
 
         MapCspReportEndpoint(app);
+    }
+
+    /// <summary>
+    /// Exposes the OpenAPI document.
+    /// </summary>
+    /// <remarks>
+    /// Anonymous outside Production, and authenticated inside it. The document is a complete
+    /// map of the API surface; that is exactly what a client generator wants and exactly what
+    /// someone probing the installation wants, so in Production it is behind the same
+    /// authorization as everything else rather than simply switched off. An operator who
+    /// genuinely wants it gone can remove this call.
+    /// </remarks>
+    private static void MapOpenApiDocument(WebApplication app)
+    {
+        var endpoint = app.MapOpenApi("/openapi/v1.json");
+
+        if (app.Environment.IsProduction())
+        {
+            endpoint.RequireAuthorization();
+        }
+        else
+        {
+            endpoint.AllowAnonymous();
+        }
     }
 
     private static void MapCspReportEndpoint(WebApplication app)

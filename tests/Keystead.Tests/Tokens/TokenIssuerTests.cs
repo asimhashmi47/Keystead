@@ -72,7 +72,10 @@ public sealed class TokenIssuerTests : IDisposable
 
         _db.Context.Workspaces.Add(new Workspace
         {
-            Id = WorkspaceA, Name = "A", Slug = "a", CreatedUtc = now,
+            Id = WorkspaceA,
+            Name = "A",
+            Slug = "a",
+            CreatedUtc = now,
         });
 
         _db.Context.Vaults.Add(new Vault

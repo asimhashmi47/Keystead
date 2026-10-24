@@ -6,7 +6,7 @@ keys, connection strings, certificates and tokens, which applications fetch at r
 Built on .NET 10, ASP.NET Core Razor Pages, EF Core and SQLite. Concept-comparable to Azure
 Key Vault, scoped to something a team can actually run on one box.
 
-> **Status: in development.** Milestones M1 to M6 are complete and committed. Keystead is now
+> **Status: in development.** Milestones M1 to M7 are complete and committed. Keystead is now
 > usable for its stated purpose: a team can set it up, sign in with a second factor, store
 > secrets, and an application can fetch them at runtime over the machine API with a scoped,
 > short-lived token. The .NET SDK, the CLI and Docker packaging (M7) are not built yet, so
@@ -69,8 +69,12 @@ an endpoint that forgets to declare a policy fails closed rather than open.
 | Members | Roles and per-user vault grants, with the last-owner rule and no self-promotion to owner; new accounts get a one-time password shown once |
 | Profile | Change your own password (revoking every other session) and replace a lost authenticator using a recovery code |
 | Search and palette | Name search across reachable vaults and secrets, and a Ctrl+K command palette built on `<dialog>` so focus trapping and Escape come from the platform |
+| SDK | `builder.Configuration.AddKeystead(...)` with token caching, retry, optional polling reload, and `--`/`__` to `:` key mapping, so application code never mentions Keystead |
+| CLI | `keystead secret list/get/set`, `env`, and `run -- <command>` which injects secrets into a child process and propagates its exit code |
+| Packaging | Chiselled non-root image, read-only root filesystem, all capabilities dropped, mounted master key, plus Caddy and Nginx reverse proxy configs |
+| CI | Build with warnings as errors, `dotnet format` gate, coverage report, CodeQL at security-and-quality, CycloneDX SBOM, Dependabot, and a container build that asserts a non-root user |
 
-**399 unit tests, all passing.** The failure cases carry the weight: tamper on ciphertext, nonce
+**428 unit tests, all passing.** The failure cases carry the weight: tamper on ciphertext, nonce
 and tag; wrong key; ciphertext moved to another workspace, vault, secret or version; purpose
 confusion; nonce uniqueness across 200 seals; malformed and weaker-parameter password digests;
 pepper mismatch; audit chain edit, rehash, delete and reorder detection; the full role matrix
@@ -95,20 +99,21 @@ properties, including that the secret value appears in no list page, no detail p
 `GET`, no API list response, no audit row, no CSV export; that a revoked identity cannot use a
 token it already holds; and that the client secret never appears again after the one response
 that issues it. Run it against a development instance with
-`python scripts/smoke-flow.py https://localhost:5001`. M8 ports these assertions into
-`Keystead.IntegrationTests` and `Keystead.SecurityTests`.
+`python scripts/smoke-flow.py https://localhost:5001`.
+
+`scripts/verify-sdk-cli.py` adds 29 more against the SDK, the CLI and the OpenAPI document,
+including that `keystead run` injects a secret into a child process, that `keystead env` quotes
+values so a shell cannot re-interpret them, and that a name stored as
+`ConnectionStrings--Default` is readable as `ConnectionStrings:Default`. M8 ports these
+assertions into `Keystead.IntegrationTests` and `Keystead.SecurityTests`.
 
 ### Not yet built
 
-Everything from milestone M7 onward in [PLAN.md](PLAN.md):
-- **M7** — client SDK (`AddKeystead()`), CLI commands, Docker, reverse proxy config
+Milestone M8 in [PLAN.md](PLAN.md):
 - **M8** — integration and security test suites, STRIDE threat model, SECURITY.md, DEPLOYMENT.md
 
-The CLI currently reports its version and prints the command surface it will gain in M7.
-
-Known gaps within what is built: there is no OpenAPI document for the API yet (M7), no JWKS
-endpoint (the public keys are stored and usable but not published), no workspace switcher,
-and master-key and vault KEK rotation are modelled and stored but have no background job to
+Known gaps within what is built: there is no JWKS endpoint (the public keys are stored and
+usable but not published), and master-key and vault KEK rotation are modelled and stored but have no background job to
 run them. Token signing key rotation is implemented and tested. Revealing a secret and the
 command palette both require JavaScript; every other action, including search, works without
 it.

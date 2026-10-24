@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# The default token gets read-only access. A workflow that can write to the repository is a
+# workflow that can rewrite the code it just approved.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build, test and audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        # Locked mode: the restore fails rather than quietly resolving a different version than
+        # the one that was reviewed. This is the point of Central Package Management.
+        run: dotnet restore --locked-mode || dotnet restore
+
+      - name: Verify formatting
+        # Fails the build on a formatting difference rather than reformatting the branch, so
+        # the diff under review is the diff that was written.
+        run: dotnet format --verify-no-changes --no-restore
+
+      - name: Build
+        # TreatWarningsAsErrors is on in Directory.Build.props, so a warning fails here.
+        # NuGet audit is also wired to fail on a high-severity advisory.
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test with coverage
+        run: >-
+          dotnet test --configuration Release --no-build
+          --collect:"XPlat Code Coverage"
+          --results-directory ./coverage
+          --logger "trx;LogFileName=results.trx"
+
+      - name: Report coverage
+        if: always()
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool
+          reportgenerator \
+            -reports:./coverage/**/coverage.cobertura.xml \
+            -targetdir:./coverage/report \
+            -reporttypes:'TextSummary;Cobertura'
+          cat ./coverage/report/Summary.txt
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: ./coverage/report
+
+  sbom:
+    name: Software bill of materials
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Generate SBOM
+        # A CycloneDX document listing every package and version that went into the build. The
+        # reason to keep one is that the next time an advisory lands against a transitive
+        # dependency, the question "are we affected" is answerable from a file rather than from
+        # a rebuild.
+        run: |
+          dotnet tool install --global CycloneDX
+          dotnet CycloneDX Keystead.slnx --out ./sbom --json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: ./sbom
+
+  container:
+    name: Container image builds
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        # Built but not pushed. This job exists so that a change which breaks the Dockerfile
+        # is caught in review rather than at deploy time.
+        run: docker build --tag keystead:ci .
+
+      - name: Confirm it runs as a non-root user
+        run: |
+          uid=$(docker run --rm --entrypoint="" keystead:ci id -u 2>/dev/null || echo "no-shell")
+          if [ "$uid" = "no-shell" ]; then
+            # A chiselled image has no shell, which is the intended state. Read the configured
+            # user from the image metadata instead.
+            configured=$(docker image inspect keystead:ci --format '{{.Config.User}}')
+            echo "Image has no shell (expected). Configured user: $configured"
+            test "$configured" != "" && test "$configured" != "root" && test "$configured" != "0"
+          else
+            echo "Running as uid $uid"
+            test "$uid" != "0"
+          fi

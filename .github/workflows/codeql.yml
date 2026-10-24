@@ -1,0 +1,47 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, because a new query can find something in code that has not changed. A scan that
+    # only runs on push would never re-examine the parts of the codebase nobody is touching.
+    - cron: '17 4 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyse:
+    name: Analyse C#
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+
+          # security-and-quality rather than the default set. This is a secrets manager; the
+          # extra queries cost build minutes and nothing else.
+          queries: security-and-quality
+
+      - name: Build
+        # An explicit build rather than autobuild, so the analysis sees the same compilation
+        # the CI build does, with the same analyzer settings.
+        run: dotnet build --configuration Release
+
+      - name: Analyse
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:csharp

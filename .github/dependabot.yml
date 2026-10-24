@@ -1,0 +1,46 @@
+version: 2
+
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+
+    # Central Package Management means every version lives in Directory.Packages.props, so
+    # Dependabot edits one file and the whole solution moves together.
+    open-pull-requests-limit: 5
+
+    groups:
+      # Microsoft's packages version in lockstep, so one pull request per week rather than a
+      # dozen that each fail to build on their own.
+      microsoft:
+        patterns:
+          - "Microsoft.*"
+          - "System.*"
+        update-types:
+          - minor
+          - patch
+
+    labels:
+      - dependencies
+
+    commit-message:
+      prefix: "Update"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+    # Actions are pinned by major version in the workflows. A compromised action runs with
+    # whatever the workflow's token can do, which is why the CI token is read-only.
+    labels:
+      - dependencies
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies

@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/Keystead.Sample.Web/Keystead.Sample.Web.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Keystead.Application/Keystead.Application.csproj" />
     <Project Path="src/Keystead.Cli/Keystead.Cli.csproj" />

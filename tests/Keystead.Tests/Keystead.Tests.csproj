@@ -22,5 +22,6 @@
     <ProjectReference Include="..\..\src\Keystead.Domain\Keystead.Domain.csproj" />
     <ProjectReference Include="..\..\src\Keystead.Application\Keystead.Application.csproj" />
     <ProjectReference Include="..\..\src\Keystead.Infrastructure\Keystead.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Keystead.Client\Keystead.Client.csproj" />
   </ItemGroup>
 </Project>
