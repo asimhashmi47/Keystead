@@ -102,11 +102,13 @@ public static class DependencyInjection
         services.AddScoped<ISignInService, SignInService>();
         services.AddScoped<IInstallationService, InstallationService>();
         services.AddScoped<IMfaEnrolmentService, MfaEnrolmentService>();
+        services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<IVaultKeyService, VaultKeyService>();
         services.AddScoped<ISecretProtector, SecretProtector>();
         services.AddScoped<IVaultService, VaultService>();
         services.AddScoped<ISecretService, SecretService>();
         services.AddScoped<ICurrentWorkspace, CurrentWorkspace>();
+        services.AddScoped<IMembershipService, MembershipService>();
         services.AddScoped<SigningKeyStore>();
         services.AddScoped<ITokenIssuer, TokenIssuer>();
         services.AddScoped<IServiceIdentityService, ServiceIdentityService>();

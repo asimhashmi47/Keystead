@@ -1,0 +1,73 @@
+@page "/search"
+@model Keystead.Web.Pages.SearchModel
+@{
+    ViewData["Title"] = "Search";
+}
+
+<div class="page-header">
+    <div class="page-header__title">
+        <h1>Search</h1>
+    </div>
+    <p class="page-header__description">
+        Matches vault and secret names. Secret values are never searchable: they are sealed
+        under per-version keys, so there is nothing to match against without decrypting
+        everything.
+    </p>
+</div>
+
+<div class="card">
+    <div class="card__header">
+        <form method="get" style="display: flex; gap: var(--space-2); width: 100%;">
+            <label class="visually-hidden" for="search-q">Search names</label>
+            <input class="input" id="search-q" name="q" type="search"
+                   value="@Model.Query" placeholder="Vault or secret name" autofocus />
+            <button class="btn btn--primary btn--sm" type="submit">Search</button>
+        </form>
+    </div>
+
+    @if (string.IsNullOrWhiteSpace(Model.Query))
+    {
+        <div class="empty">
+            <p class="empty__title">What are you looking for?</p>
+            <p class="empty__body">
+                Type a name above, or press <kbd>Ctrl</kbd> + <kbd>K</kbd> anywhere to open the
+                command palette.
+            </p>
+        </div>
+    }
+    else if (Model.Hits.Count == 0)
+    {
+        <div class="empty">
+            <p class="empty__title">Nothing matched</p>
+            <p class="empty__body">
+                No vault or secret you can reach has a name containing
+                &ldquo;@Model.Query&rdquo;.
+            </p>
+        </div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <caption class="visually-hidden">Search results</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col">Kind</th>
+                        <th scope="col">Where</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var hit in Model.Hits)
+                    {
+                        <tr>
+                            <td><a href="@hit.Url"><strong>@hit.Title</strong></a></td>
+                            <td><span class="badge badge--neutral">@hit.Kind</span></td>
+                            <td><span class="field__hint">@hit.Subtitle</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

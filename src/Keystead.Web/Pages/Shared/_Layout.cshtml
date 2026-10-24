@@ -8,6 +8,30 @@
     comes from external modules in wwwroot/js, each carrying this request's CSP nonce.
 *@
 @inject Keystead.Web.Security.CspNonce Nonce
+@inject Keystead.Application.Workspaces.ICurrentWorkspace Workspaces
+@{
+    // Resolved here rather than in every page model, so the shell can show which workspace
+    // the person is acting in without each page having to pass it up.
+    var currentUserId = Keystead.Web.Security.KeysteadClaims.GetUserId(User);
+
+    var memberships = currentUserId is { } uid
+        ? await Workspaces.ListForUserAsync(uid, Context.RequestAborted)
+        : [];
+
+    // Resolved through the same path the pages use, so the shell shows the workspace the
+    // person actually switched to rather than always their first one.
+    Guid? requestedWorkspace = null;
+
+    if (Context.Request.Cookies.TryGetValue("__Host-keystead-ws", out var wsCookie)
+        && Guid.TryParse(wsCookie, System.Globalization.CultureInfo.InvariantCulture, out var wsParsed))
+    {
+        requestedWorkspace = wsParsed;
+    }
+
+    var currentWorkspace = currentUserId is { } resolveFor
+        ? await Workspaces.ResolveAsync(resolveFor, requestedWorkspace, Context.RequestAborted)
+        : null;
+}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -32,6 +56,40 @@
                 </span>
                 Keystead
             </a>
+
+            @if (currentWorkspace is { } workspace)
+            {
+                <div class="sidebar__workspace">
+                    <p class="sidebar__workspace-label">Workspace</p>
+                    <p class="sidebar__workspace-name">@workspace.Name</p>
+                    <p class="sidebar__workspace-role">@workspace.Role</p>
+
+                    @if (memberships.Count > 1)
+                    {
+                        @* Shown only when there is something to switch to, so a single-workspace
+                           installation is not given a control that does nothing. *@
+                        <form method="post" action="/workspace/switch"
+                              style="margin-top: var(--space-2);">
+                            <label class="visually-hidden" for="workspace-switch">
+                                Switch workspace
+                            </label>
+                            <select class="select" id="workspace-switch" name="workspaceId">
+                                @foreach (var option in memberships)
+                                {
+                                    <option value="@option.WorkspaceId"
+                                            selected="@(option.WorkspaceId == workspace.WorkspaceId)">
+                                        @option.Name
+                                    </option>
+                                }
+                            </select>
+                            <button class="btn btn--secondary btn--sm" type="submit"
+                                    style="margin-top: var(--space-2); width: 100%;">
+                                Switch
+                            </button>
+                        </form>
+                    }
+                </div>
+            }
 
             <nav class="sidebar__section" aria-label="Main">
                 <p class="sidebar__label">Workspace</p>
@@ -127,15 +185,21 @@
                     <span class="visually-hidden">Toggle navigation</span>
                 </button>
 
-                <form class="topbar__search" method="get" action="/search" role="search">
+                <form class="topbar__search" method="get" action="/search" role="search"
+                      style="flex: 1; max-width: 32rem;">
                     <label class="visually-hidden" for="global-search">Search secrets and vaults</label>
                     <input class="input"
                            id="global-search"
                            name="q"
                            type="search"
-                           placeholder="Search, or press Ctrl+K"
+                           placeholder="Search names, or press Ctrl+K"
                            autocomplete="off" />
                 </form>
+
+                <button class="btn btn--ghost btn--sm" type="button" data-action="open-palette">
+                    <kbd>Ctrl</kbd><kbd>K</kbd>
+                    <span class="visually-hidden">Open the command palette</span>
+                </button>
             </header>
 
             <main class="content" id="main">
@@ -144,7 +208,39 @@
         </div>
     </div>
 
+    @*
+        The command palette. Rendered as a <dialog> so focus trapping, Escape and the
+        backdrop come from the platform rather than from a hand-rolled modal.
+    *@
+    <dialog class="palette" id="palette" aria-label="Command palette">
+        <div class="palette__field">
+            <label class="visually-hidden" for="palette-input">
+                Search vault and secret names
+            </label>
+            <input class="palette__input"
+                   id="palette-input"
+                   type="search"
+                   placeholder="Search vault and secret names"
+                   autocomplete="off"
+                   role="combobox"
+                   aria-expanded="true"
+                   aria-controls="palette-results"
+                   data-palette-input />
+        </div>
+
+        <div class="palette__results"
+             id="palette-results"
+             role="listbox"
+             aria-label="Results"
+             data-palette-results></div>
+
+        <p class="palette__footer" role="status" aria-live="polite" data-palette-status>
+            Type to search vault and secret names.
+        </p>
+    </dialog>
+
     <script nonce="@Nonce.Value" src="~/js/shell.js" type="module"></script>
+    <script nonce="@Nonce.Value" src="~/js/palette.js" type="module"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

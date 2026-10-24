@@ -1,0 +1,250 @@
+@page "/members"
+@model Keystead.Web.Pages.MembersModel
+@using Keystead.Domain.Vaults
+@using Keystead.Domain.Workspaces
+@{
+    ViewData["Title"] = "Members";
+}
+
+<div class="page-header">
+    <div class="page-header__title">
+        <h1>Members</h1>
+    </div>
+    <p class="page-header__description">
+        Who belongs to this workspace, what they may do, and which vaults they can open.
+        Readers and contributors reach only the vaults granted to them; administrators and
+        owners reach every vault here.
+    </p>
+</div>
+
+@if (Model.Notice is not null)
+{
+    <div class="alert alert--success" role="status"><div>@Model.Notice</div></div>
+}
+
+@if (Model.Error is not null)
+{
+    <div class="alert alert--danger" role="alert"><div>@Model.Error</div></div>
+}
+
+@if (Model.OneTimePassword is { } password)
+{
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <div class="card__header">
+            <h2>Account created</h2>
+        </div>
+        <div class="card__body">
+            <div class="alert alert--warning">
+                <div>
+                    <p><strong>Pass this on securely, then it is gone.</strong></p>
+                    <p>
+                        Keystead does not send email, so you need to give this to
+                        @Model.OneTimePasswordFor yourself. Only a hash of it is stored, so it
+                        cannot be shown again. They should change it after signing in.
+                    </p>
+                </div>
+            </div>
+
+            <div class="field">
+                <p class="field__label">One-time password for @Model.OneTimePasswordFor</p>
+                <div class="secret-value"><code id="otp">@password</code></div>
+                <button class="btn btn--ghost btn--sm" type="button"
+                        data-action="copy" data-copy-target="otp">
+                    Copy password
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="card" style="margin-bottom: var(--space-8);">
+    <div class="card__header">
+        <h2>@Model.Items.Count member@(Model.Items.Count == 1 ? "" : "s")</h2>
+    </div>
+
+    <div class="table-wrap">
+        <table class="table">
+            <caption class="visually-hidden">Members of this workspace</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Person</th>
+                    <th scope="col">Role</th>
+                    <th scope="col">Two-factor</th>
+                    <th scope="col">Vault access</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var member in Model.Items)
+                {
+                    <tr>
+                        <td>
+                            <strong>@member.DisplayName</strong>
+                            <div class="field__hint">@member.Email</div>
+                            @if (!member.IsActive)
+                            {
+                                <span class="badge badge--danger">Deactivated</span>
+                            }
+                        </td>
+                        <td>
+                            <form method="post" asp-page-handler="ChangeRole"
+                                  style="display: flex; gap: var(--space-2); align-items: center;">
+                                <input type="hidden" name="userId" value="@member.UserId" />
+
+                                <label class="visually-hidden" for="role-@member.UserId">
+                                    Role for @member.DisplayName
+                                </label>
+                                <select class="select" id="role-@member.UserId" name="role">
+                                    @foreach (var role in Enum.GetValues<WorkspaceRole>())
+                                    {
+                                        <option value="@role" selected="@(role == member.Role)"
+                                                disabled="@(role == WorkspaceRole.Owner && !Model.IsOwner)">
+                                            @role
+                                        </option>
+                                    }
+                                </select>
+
+                                <button class="btn btn--secondary btn--sm" type="submit">Save</button>
+                            </form>
+                        </td>
+                        <td>
+                            @if (member.MfaEnabled)
+                            {
+                                <span class="badge badge--success">
+                                    <span class="badge__dot" aria-hidden="true"></span> Enrolled
+                                </span>
+                            }
+                            else if (member.RequiresMfa)
+                            {
+                                <span class="badge badge--danger"
+                                      title="This role requires two-factor authentication. They are sent to enrolment at sign-in and cannot use the workspace until they finish.">
+                                    Required, not set up
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--neutral">Optional</span>
+                            }
+                        </td>
+                        <td>
+                            @if (member.HasImplicitVaultAccess)
+                            {
+                                <span class="badge badge--info"
+                                      title="Administrators and owners can open every vault in the workspace without an explicit grant.">
+                                    Every vault
+                                </span>
+                            }
+                            else if (member.Grants.Count == 0)
+                            {
+                                <span class="badge badge--warning">No vaults</span>
+                            }
+                            else
+                            {
+                                @foreach (var grant in member.Grants)
+                                {
+                                    <form method="post" asp-page-handler="RevokeGrant"
+                                          style="display: inline;">
+                                        <input type="hidden" name="userId" value="@member.UserId" />
+                                        <input type="hidden" name="vaultId" value="@grant.VaultId" />
+                                        <button class="badge @(grant.Permission == VaultPermission.Write ? "badge--success" : "badge--neutral")"
+                                                type="submit"
+                                                style="border: none; cursor: pointer;"
+                                                title="Revoke access to @grant.VaultName">
+                                            @grant.VaultName
+                                            (@(grant.Permission == VaultPermission.Write ? "write" : "read"))
+                                            &times;
+                                        </button>
+                                    </form>
+                                }
+                            }
+
+                            @if (!member.HasImplicitVaultAccess && Model.Vaults.Count > 0)
+                            {
+                                <form method="post" asp-page-handler="Grant"
+                                      style="display: flex; gap: var(--space-2); margin-top: var(--space-2);">
+                                    <input type="hidden" name="userId" value="@member.UserId" />
+
+                                    <label class="visually-hidden" for="grant-@member.UserId">
+                                        Vault to grant @member.DisplayName
+                                    </label>
+                                    <select class="select" id="grant-@member.UserId" name="vaultId">
+                                        @foreach (var vault in Model.Vaults)
+                                        {
+                                            <option value="@vault.Id">@vault.Name</option>
+                                        }
+                                    </select>
+
+                                    <label class="visually-hidden" for="perm-@member.UserId">
+                                        Permission
+                                    </label>
+                                    <select class="select" id="perm-@member.UserId" name="permission">
+                                        <option value="@VaultPermission.Read">Read</option>
+                                        <option value="@VaultPermission.Write"
+                                                disabled="@(member.Role == WorkspaceRole.Reader)">
+                                            Write
+                                        </option>
+                                    </select>
+
+                                    <button class="btn btn--ghost btn--sm" type="submit">Grant</button>
+                                </form>
+
+                                @if (member.Role == WorkspaceRole.Reader)
+                                {
+                                    <p class="field__hint">
+                                        A reader is capped at read access even if granted write.
+                                    </p>
+                                }
+                            }
+                        </td>
+                        <td style="text-align: right;">
+                            <form method="post" asp-page-handler="Remove">
+                                <input type="hidden" name="userId" value="@member.UserId" />
+                                <button class="btn btn--ghost btn--sm" type="submit">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card__header">
+        <h2>Add a member</h2>
+    </div>
+    <div class="card__body">
+        <form method="post" asp-page-handler="Add">
+            <div class="field">
+                <label class="field__label" for="m-email">Email address</label>
+                <input class="input" id="m-email" type="email" required asp-for="Input.Email" />
+                <span class="field__error" asp-validation-for="Input.Email"></span>
+            </div>
+
+            <div class="field">
+                <label class="field__label" for="m-name">Name</label>
+                <input class="input" id="m-name" required asp-for="Input.DisplayName" />
+                <span class="field__error" asp-validation-for="Input.DisplayName"></span>
+            </div>
+
+            <div class="field">
+                <label class="field__label" for="m-role">Role</label>
+                <select class="select" id="m-role" name="role">
+                    <option value="@WorkspaceRole.Reader">Reader &mdash; open granted vaults</option>
+                    <option value="@WorkspaceRole.Contributor">Contributor &mdash; write to granted vaults</option>
+                    <option value="@WorkspaceRole.Admin">Admin &mdash; manage vaults, members and identities</option>
+                    @if (Model.IsOwner)
+                    {
+                        <option value="@WorkspaceRole.Owner">Owner &mdash; full control, including purge and key rotation</option>
+                    }
+                </select>
+                <p class="field__hint">
+                    Administrators and owners must set up two-factor authentication before they
+                    can use the workspace.
+                </p>
+            </div>
+
+            <button class="btn btn--primary" type="submit">Add member</button>
+        </form>
+    </div>
+</div>

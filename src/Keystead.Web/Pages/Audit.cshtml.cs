@@ -61,7 +61,7 @@ public sealed class AuditModel : KeysteadPageModel
         }
 
         var workspace = await _workspaces
-            .ResolveAsync(principal.Id, null, cancellationToken)
+            .ResolveAsync(principal.Id, RequestedWorkspaceId, cancellationToken)
             .ConfigureAwait(false);
 
         if (workspace is null)
@@ -112,7 +112,7 @@ public sealed class AuditModel : KeysteadPageModel
         }
 
         var workspace = await _workspaces
-            .ResolveAsync(principal.Id, null, cancellationToken)
+            .ResolveAsync(principal.Id, RequestedWorkspaceId, cancellationToken)
             .ConfigureAwait(false);
 
         if (workspace is null)

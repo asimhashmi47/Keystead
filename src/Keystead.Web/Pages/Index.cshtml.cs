@@ -84,7 +84,7 @@ public sealed class IndexModel : KeysteadPageModel
         }
 
         Workspace = await _workspaces
-            .ResolveAsync(principal.Id, null, cancellationToken)
+            .ResolveAsync(principal.Id, RequestedWorkspaceId, cancellationToken)
             .ConfigureAwait(false);
 
         if (Workspace is null)

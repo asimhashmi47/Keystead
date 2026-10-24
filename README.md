@@ -6,7 +6,7 @@ keys, connection strings, certificates and tokens, which applications fetch at r
 Built on .NET 10, ASP.NET Core Razor Pages, EF Core and SQLite. Concept-comparable to Azure
 Key Vault, scoped to something a team can actually run on one box.
 
-> **Status: in development.** Milestones M1 to M5 are complete and committed. Keystead is now
+> **Status: in development.** Milestones M1 to M6 are complete and committed. Keystead is now
 > usable for its stated purpose: a team can set it up, sign in with a second factor, store
 > secrets, and an application can fetch them at runtime over the machine API with a scoped,
 > short-lived token. The .NET SDK, the CLI and Docker packaging (M7) are not built yet, so
@@ -66,8 +66,11 @@ an endpoint that forgets to declare a policy fails closed rather than open.
 | Audit viewer | Filterable log with a chain-verification badge and a CSV export that is guarded against spreadsheet formula injection |
 | Service identities | `ksd_live_…` secrets with a checksum, stored as SHA-256, shown once; rotation with an overlap window; per-identity IP allowlist; revocation that bites on the next call |
 | Machine API | OAuth2 client credentials to a short-lived ES256 token with a rotatable signing key; scoped per vault; RFC 7807 problem documents; ETag revalidation; `no-store` throughout |
+| Members | Roles and per-user vault grants, with the last-owner rule and no self-promotion to owner; new accounts get a one-time password shown once |
+| Profile | Change your own password (revoking every other session) and replace a lost authenticator using a recovery code |
+| Search and palette | Name search across reachable vaults and secrets, and a Ctrl+K command palette built on `<dialog>` so focus trapping and Escape come from the platform |
 
-**376 unit tests, all passing.** The failure cases carry the weight: tamper on ciphertext, nonce
+**399 unit tests, all passing.** The failure cases carry the weight: tamper on ciphertext, nonce
 and tag; wrong key; ciphertext moved to another workspace, vault, secret or version; purpose
 confusion; nonce uniqueness across 200 seals; malformed and weaker-parameter password digests;
 pepper mismatch; audit chain edit, rehash, delete and reorder detection; the full role matrix
@@ -97,8 +100,7 @@ that issues it. Run it against a development instance with
 
 ### Not yet built
 
-Everything from milestone M6 onward in [PLAN.md](PLAN.md):
-- **M6** — the remaining pages, command palette, accessibility pass
+Everything from milestone M7 onward in [PLAN.md](PLAN.md):
 - **M7** — client SDK (`AddKeystead()`), CLI commands, Docker, reverse proxy config
 - **M8** — integration and security test suites, STRIDE threat model, SECURITY.md, DEPLOYMENT.md
 
@@ -106,12 +108,10 @@ The CLI currently reports its version and prints the command surface it will gai
 
 Known gaps within what is built: there is no OpenAPI document for the API yet (M7), no JWKS
 endpoint (the public keys are stored and usable but not published), no workspace switcher,
-vault grants for *users* are seeded directly rather than managed through a members page (M6 —
-grants for service identities are managed on the identities page), the command palette is a
-Ctrl+K shortcut that focuses search rather than a full palette (M6), and master-key and vault
-KEK rotation are modelled and stored but have no background job to run them. Token signing key
-rotation is implemented and tested. Revealing a secret in the browser requires JavaScript;
-every other action works without it.
+and master-key and vault KEK rotation are modelled and stored but have no background job to
+run them. Token signing key rotation is implemented and tested. Revealing a secret and the
+command palette both require JavaScript; every other action, including search, works without
+it.
 
 ---
 

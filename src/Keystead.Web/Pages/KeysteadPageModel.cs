@@ -38,4 +38,22 @@ public abstract class KeysteadPageModel : PageModel
 
     /// <summary>The current session's identifier.</summary>
     protected Guid? CurrentSessionId => KeysteadClaims.GetSessionId(User);
+
+    /// <summary>The name of the cookie holding the chosen workspace.</summary>
+    internal const string WorkspaceCookie = "__Host-keystead-ws";
+
+    /// <summary>
+    /// The workspace the person has selected, if any.
+    /// </summary>
+    /// <remarks>
+    /// Only a hint. <c>ICurrentWorkspace.ResolveAsync</c> looks it up inside the user's own
+    /// memberships and falls back to their first workspace if it does not match, so a value
+    /// edited in the cookie cannot select a tenant they do not belong to. That is why this can
+    /// safely be a plain cookie rather than something signed.
+    /// </remarks>
+    protected Guid? RequestedWorkspaceId =>
+        Request.Cookies.TryGetValue(WorkspaceCookie, out var value)
+            && Guid.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : null;
 }

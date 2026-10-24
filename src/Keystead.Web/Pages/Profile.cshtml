@@ -1,0 +1,172 @@
+@page "/profile"
+@model Keystead.Web.Pages.ProfileModel
+@{
+    ViewData["Title"] = "Profile";
+}
+
+<div class="page-header">
+    <div class="page-header__title">
+        <h1>Your account</h1>
+    </div>
+    <p class="page-header__description">
+        Your password, your second factor, and where you are signed in.
+    </p>
+</div>
+
+@if (Model.Notice is not null)
+{
+    <div class="alert alert--success" role="status"><div>@Model.Notice</div></div>
+}
+
+@if (Model.Error is not null)
+{
+    <div class="alert alert--danger" role="alert"><div>@Model.Error</div></div>
+}
+
+@if (Model.View is { } profile)
+{
+    <div class="grid grid--metrics" style="margin-bottom: var(--space-8);">
+        <div class="metric">
+            <p class="metric__label">Signed in as</p>
+            <p class="metric__value" style="font-size: var(--text-lg);">@profile.DisplayName</p>
+            <p class="metric__hint">@profile.Email</p>
+        </div>
+
+        <div class="metric">
+            <p class="metric__label">Two-factor</p>
+            <p class="metric__value" style="font-size: var(--text-xl);">
+                @if (profile.MfaEnabled)
+                {
+                    <span class="badge badge--success">
+                        <span class="badge__dot" aria-hidden="true"></span> Enrolled
+                    </span>
+                }
+                else
+                {
+                    <span class="badge @(profile.RequiresMfa ? "badge--danger" : "badge--warning")">
+                        Not set up
+                    </span>
+                }
+            </p>
+            <p class="metric__hint">
+                @if (profile.MfaEnabled)
+                {
+                    <text>@profile.RecoveryCodesRemaining recovery code(s) left</text>
+                }
+                else
+                {
+                    <a href="/mfa/enrol">Set one up</a>
+                }
+            </p>
+        </div>
+
+        <div class="metric">
+            <p class="metric__label">Password last changed</p>
+            <p class="metric__value" style="font-size: var(--text-lg);">
+                <time datetime="@profile.PasswordChangedUtc.ToString("O")">
+                    @profile.PasswordChangedUtc.ToString("d MMM yyyy")
+                </time>
+            </p>
+            <p class="metric__hint">@((DateTimeOffset.UtcNow - profile.PasswordChangedUtc).Days) days ago</p>
+        </div>
+
+        <div class="metric">
+            <p class="metric__label">Active sessions</p>
+            <p class="metric__value">@profile.ActiveSessionCount</p>
+            <p class="metric__hint"><a href="/security">Review and revoke</a></p>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <div class="card__header">
+            <h2>Change your password</h2>
+        </div>
+        <div class="card__body">
+            <form method="post" asp-page-handler="ChangePassword" autocomplete="off">
+                <div class="field">
+                    <label class="field__label" for="p-current">Current password</label>
+                    <input class="input" id="p-current" type="password"
+                           autocomplete="current-password" required
+                           asp-for="Password.CurrentPassword" />
+                    <p class="field__hint">
+                        Asked for even though you are signed in, so a session left open on an
+                        unlocked machine is not enough to take your account over.
+                    </p>
+                </div>
+
+                <div class="field">
+                    <label class="field__label" for="p-new">New password</label>
+                    <input class="input" id="p-new" type="password"
+                           autocomplete="new-password" required
+                           asp-for="Password.NewPassword" />
+                    <p class="field__hint">
+                        At least 12 characters. A few unrelated words beat a short complicated
+                        string, and there are no symbol requirements to work around.
+                    </p>
+                    <span class="field__error" asp-validation-for="Password.NewPassword"></span>
+                </div>
+
+                <div class="field">
+                    <label class="field__label" for="p-confirm">Confirm new password</label>
+                    <input class="input" id="p-confirm" type="password"
+                           autocomplete="new-password" required
+                           asp-for="Password.ConfirmPassword" />
+                    <span class="field__error" asp-validation-for="Password.ConfirmPassword"></span>
+                </div>
+
+                <button class="btn btn--primary" type="submit">Change password</button>
+
+                <p class="field__hint" style="margin-top: var(--space-3);">
+                    Every other session is signed out when you change your password.
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__header">
+            <h2>Replace your authenticator</h2>
+        </div>
+        <div class="card__body">
+            @if (!profile.MfaEnabled)
+            {
+                <p class="field__hint">
+                    You have no authenticator set up.
+                    <a href="/mfa/enrol">Set one up now</a>.
+                </p>
+            }
+            else
+            {
+                <p class="page-header__description">
+                    Clears your current enrolment so you can scan a new authenticator. Your
+                    existing recovery codes stop working and you are issued a new set.
+                </p>
+
+                <form method="post" asp-page-handler="ResetMfa" autocomplete="off">
+                    <div class="field">
+                        <label class="field__label" for="m-current">Your password</label>
+                        <input class="input" id="m-current" type="password"
+                               autocomplete="current-password" required
+                               asp-for="Mfa.CurrentPassword" />
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="m-code">
+                            Authenticator code, or a recovery code
+                        </label>
+                        <input class="input input--mono" id="m-code" type="text"
+                               autocomplete="one-time-code" asp-for="Mfa.TotpOrRecoveryCode" />
+                        <p class="field__hint">
+                            If you have lost your authenticator, use one of your recovery codes
+                            here. That is what they are for.
+                        </p>
+                    </div>
+
+                    <button class="btn btn--secondary" type="submit">
+                        Clear and set up a new authenticator
+                    </button>
+                </form>
+            }
+        </div>
+    </div>
+}

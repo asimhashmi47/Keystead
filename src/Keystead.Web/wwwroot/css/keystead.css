@@ -1002,3 +1002,123 @@ code, kbd, pre, samp {
 
     .split__form { padding: var(--space-8) var(--space-5); }
 }
+
+/* ===========================================================================
+   Command palette
+   ---------------------------------------------------------------------------
+   Built on <dialog>, so focus trapping, Escape and the backdrop come from the
+   platform rather than from a hand-rolled modal.
+   =========================================================================== */
+.palette {
+    width: min(42rem, calc(100vw - 2rem));
+    max-height: 60vh;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-lg);
+    color: var(--color-text);
+}
+
+.palette::backdrop {
+    background: rgba(22, 22, 29, 0.42);
+    backdrop-filter: blur(2px);
+}
+
+.palette__field {
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.palette__input {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    font: inherit;
+    font-size: var(--text-md);
+    color: var(--color-text);
+    background: var(--color-surface-sunken);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.palette__input:focus {
+    outline: none;
+    border-color: var(--color-focus);
+    box-shadow: var(--shadow-focus);
+}
+
+.palette__results {
+    margin: 0;
+    padding: var(--space-2);
+    list-style: none;
+    overflow-y: auto;
+    max-height: 40vh;
+}
+
+.palette__hit {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.palette__hit:hover,
+.palette__hit--active {
+    background: var(--color-primary-soft);
+    text-decoration: none;
+}
+
+.palette__hit-title { font-weight: 550; }
+
+.palette__hit-subtitle {
+    margin-left: auto;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+.palette__footer {
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border-subtle);
+    background: var(--color-surface-sunken);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+kbd {
+    padding: 1px var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 1px 0 var(--color-border);
+}
+
+/* The workspace switcher at the top of the sidebar. */
+.sidebar__workspace {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.sidebar__workspace-label {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.sidebar__workspace-name {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.sidebar__workspace-role {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}

@@ -74,7 +74,7 @@ public sealed class VaultsModel : KeysteadPageModel
         }
 
         var workspace = await _workspaces
-            .ResolveAsync(principal.Id, null, cancellationToken)
+            .ResolveAsync(principal.Id, RequestedWorkspaceId, cancellationToken)
             .ConfigureAwait(false);
 
         if (workspace is null)
@@ -121,7 +121,7 @@ public sealed class VaultsModel : KeysteadPageModel
         }
 
         Workspace = await _workspaces
-            .ResolveAsync(principal.Id, null, cancellationToken)
+            .ResolveAsync(principal.Id, RequestedWorkspaceId, cancellationToken)
             .ConfigureAwait(false);
 
         if (Workspace is null)
