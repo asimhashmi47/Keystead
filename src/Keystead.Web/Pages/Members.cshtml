@@ -2,8 +2,11 @@
 @model Keystead.Web.Pages.MembersModel
 @using Keystead.Domain.Vaults
 @using Keystead.Domain.Workspaces
+@using Keystead.Web.Tables
 @{
     ViewData["Title"] = "Members";
+    var table = Model.Table;
+    var selected = Model.Selected;
 }
 
 <div class="page-header">
@@ -11,9 +14,9 @@
         <h1>Members</h1>
     </div>
     <p class="page-header__description">
-        Who belongs to this workspace, what they may do, and which vaults they can open.
-        Readers and contributors reach only the vaults granted to them; administrators and
-        owners reach every vault here.
+        Who belongs to this workspace, what they may do, and which vaults they can open. Choose
+        a person to change their role or their access. Readers and contributors reach only the
+        vaults granted to them; administrators and owners reach every vault here.
     </p>
 </div>
 
@@ -57,158 +60,324 @@
     </div>
 }
 
-<div class="card u-section">
-    <div class="card__header">
-        <h2>@Model.Items.Count member@(Model.Items.Count == 1 ? "" : "s")</h2>
-    </div>
+@if (table is not null)
+{
+    <div class="master-detail @(selected is null ? "master-detail--single" : null) u-section">
+        <div class="master-detail__list">
+            <div class="card">
+                <partial name="_TableToolbar" model="table.Chrome" />
 
-    <div class="table-wrap">
-        <table class="table table--wide">
-            <caption class="visually-hidden">Members of this workspace</caption>
-            <thead>
-                <tr>
-                    <th scope="col">Person</th>
-                    <th scope="col">Role</th>
-                    <th scope="col">Two-factor</th>
-                    <th class="cell--grants" scope="col">Vault access</th>
-                    <th scope="col"><span class="visually-hidden">Actions</span></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var member in Model.Items)
+                @if (table.IsEmpty)
                 {
-                    <tr>
-                        <td>
-                            <strong>@member.DisplayName</strong>
-                            <div class="field__hint">@member.Email</div>
-                            @if (!member.IsActive)
+                    <div class="table-empty">
+                        <p class="table-empty__title">
+                            @(table.Chrome.HasFilter ? "Nothing matches that" : "No members yet")
+                        </p>
+                        <p class="table-empty__body">
+                            @if (table.Chrome.HasFilter)
+                            {
+                                <text>
+                                    There are @table.Chrome.TotalCount members in this workspace.
+                                    None of them match the current search.
+                                </text>
+                            }
+                            else
+                            {
+                                <text>
+                                    You are the only person here. Add someone to share a vault
+                                    with them.
+                                </text>
+                            }
+                        </p>
+
+                        @if (table.Chrome.HasFilter)
+                        {
+                            <a class="btn btn--secondary btn--sm u-mt-4" href="@table.Chrome.ClearUrl">
+                                Clear the search
+                            </a>
+                        }
+                        else
+                        {
+                            <a class="btn btn--primary btn--sm u-mt-4" href="/members?add=1#add-member">
+                                Add a member
+                            </a>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="table-wrap">
+                        <table class="table">
+                            <caption class="visually-hidden">
+                                Members of this workspace. Choose a row to manage that person.
+                            </caption>
+
+                            <partial name="_TableHead" model="table.Chrome" />
+
+                            <tbody>
+                                @foreach (var member in table.Rows)
+                                {
+                                    var isCurrent = selected?.UserId == member.UserId;
+                                    var url = table.Chrome.WithValue(
+                                        Keystead.Web.Pages.MembersModel.SelectionKey,
+                                        member.UserId.ToString("D"));
+
+                                    <tr class="@(isCurrent ? "is-current" : null)" data-row-url="@url">
+                                        <td>
+                                            <a class="row-link" href="@url"
+                                               aria-current="@(isCurrent ? "true" : null)">
+                                                <span class="row-link__title">@member.DisplayName</span>
+                                                <span class="field__hint u-block">@member.Email</span>
+                                            </a>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge--neutral">@member.Role</span>
+                                        </td>
+                                        <td>
+                                            @if (member.MfaEnabled)
+                                            {
+                                                <span class="badge badge--success">
+                                                    <span class="badge__dot" aria-hidden="true"></span> Enrolled
+                                                </span>
+                                            }
+                                            else if (member.RequiresMfa)
+                                            {
+                                                <span class="badge badge--danger">Required, not set up</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge badge--neutral">Optional</span>
+                                            }
+                                        </td>
+                                        <td class="cell--end cell--secondary">
+                                            @if (member.HasImplicitVaultAccess)
+                                            {
+                                                <span class="badge badge--info">Every vault</span>
+                                            }
+                                            else if (member.Grants.Count == 0)
+                                            {
+                                                <span class="badge badge--warning">None</span>
+                                            }
+                                            else
+                                            {
+                                                <span>@member.Grants.Count</span>
+                                            }
+                                        </td>
+                                        <td class="cell--secondary">
+                                            @if (member.IsActive)
+                                            {
+                                                <span class="badge badge--success">
+                                                    <span class="badge__dot" aria-hidden="true"></span> Active
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge badge--danger">Deactivated</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <partial name="_TablePager" model="table.Chrome" />
+                }
+            </div>
+        </div>
+
+        @if (selected is not null)
+        {
+            <div class="master-detail__detail">
+                <div class="card">
+                    <div class="card__body">
+                        <div class="detail__head">
+                            <div class="detail__identity">
+                                <span class="avatar avatar--lg" aria-hidden="true">
+                                    @Initials(selected.DisplayName, selected.Email)
+                                </span>
+                                <div>
+                                    <h2 class="detail__name">@selected.DisplayName</h2>
+                                    <p class="detail__meta">@selected.Email</p>
+                                </div>
+                            </div>
+
+                            <a class="btn btn--icon"
+                               href="@table.Chrome.WithValue(Keystead.Web.Pages.MembersModel.SelectionKey, null)"
+                               aria-label="Close this panel">
+                                <span aria-hidden="true">&times;</span>
+                            </a>
+                        </div>
+
+                        <div class="u-row u-row--wrap u-mt-4">
+                            @if (selected.IsActive)
+                            {
+                                <span class="badge badge--success">
+                                    <span class="badge__dot" aria-hidden="true"></span> Active
+                                </span>
+                            }
+                            else
                             {
                                 <span class="badge badge--danger">Deactivated</span>
                             }
-                        </td>
-                        <td>
-                            <form class="u-row u-row--center" method="post" asp-page-handler="ChangeRole">
-                                <input type="hidden" name="userId" value="@member.UserId" />
 
-                                <label class="visually-hidden" for="role-@member.UserId">
-                                    Role for @member.DisplayName
+                            @if (selected.MfaEnabled)
+                            {
+                                <span class="badge badge--success">Two-factor enrolled</span>
+                            }
+                            else if (selected.RequiresMfa)
+                            {
+                                <span class="badge badge--danger">
+                                    Two-factor required, not set up
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--neutral">Two-factor optional</span>
+                            }
+
+                            <span class="badge badge--neutral">
+                                Added @selected.CreatedUtc.ToLocalTime().ToString("d MMM yyyy")
+                            </span>
+                        </div>
+
+                        @if (!selected.MfaEnabled && selected.RequiresMfa)
+                        {
+                            <p class="field__hint u-mt-3">
+                                This role requires a second factor. They are sent to enrolment
+                                at sign-in and cannot use the workspace until they finish.
+                            </p>
+                        }
+
+                        <div class="detail__section">
+                            <p class="detail__label">Role</p>
+
+                            <form class="u-row u-row--wrap" method="post" asp-page-handler="ChangeRole">
+                                <input type="hidden" name="userId" value="@selected.UserId" />
+
+                                <label class="visually-hidden" for="role">
+                                    Role for @selected.DisplayName
                                 </label>
-                                <select class="select" id="role-@member.UserId" name="role">
+                                <select class="select" id="role" name="role">
                                     @foreach (var role in Enum.GetValues<WorkspaceRole>())
                                     {
-                                        <option value="@role" selected="@(role == member.Role)"
+                                        <option value="@role" selected="@(role == selected.Role)"
                                                 disabled="@(role == WorkspaceRole.Owner && !Model.IsOwner)">
                                             @role
                                         </option>
                                     }
                                 </select>
 
-                                <button class="btn btn--secondary btn--sm" type="submit">Save</button>
+                                <button class="btn btn--secondary" type="submit">Save role</button>
                             </form>
-                        </td>
-                        <td>
-                            @if (member.MfaEnabled)
+
+                            <p class="field__hint u-mt-2">
+                                @RoleHint(selected.Role)
+                            </p>
+                        </div>
+
+                        <div class="detail__section">
+                            <p class="detail__label">Vault access</p>
+
+                            @if (selected.HasImplicitVaultAccess)
                             {
-                                <span class="badge badge--success">
-                                    <span class="badge__dot" aria-hidden="true"></span> Enrolled
-                                </span>
-                            }
-                            else if (member.RequiresMfa)
-                            {
-                                <span class="badge badge--danger"
-                                      title="This role requires two-factor authentication. They are sent to enrolment at sign-in and cannot use the workspace until they finish.">
-                                    Required, not set up
-                                </span>
+                                <p class="field__hint">
+                                    Administrators and owners open every vault in the workspace
+                                    without a grant, so there is nothing to grant here.
+                                </p>
                             }
                             else
                             {
-                                <span class="badge badge--neutral">Optional</span>
-                            }
-                        </td>
-                        <td class="cell--grants">
-                            @if (member.HasImplicitVaultAccess)
-                            {
-                                <span class="badge badge--info"
-                                      title="Administrators and owners can open every vault in the workspace without an explicit grant.">
-                                    Every vault
-                                </span>
-                            }
-                            else if (member.Grants.Count == 0)
-                            {
-                                <span class="badge badge--warning">No vaults</span>
-                            }
-                            else
-                            {
-                                @foreach (var grant in member.Grants)
-                                {
-                                    <form class="u-inline" method="post" asp-page-handler="RevokeGrant">
-                                        <input type="hidden" name="userId" value="@member.UserId" />
-                                        <input type="hidden" name="vaultId" value="@grant.VaultId" />
-                                        <button class="badge badge--button @(grant.Permission == VaultPermission.Write ? "badge--success" : "badge--neutral")"
-                                                type="submit"
-                                                title="Revoke access to @grant.VaultName">
-                                            @grant.VaultName
-                                            (@(grant.Permission == VaultPermission.Write ? "write" : "read"))
-                                            &times;
-                                        </button>
-                                    </form>
-                                }
-                            }
-
-                            @if (!member.HasImplicitVaultAccess && Model.Vaults.Count > 0)
-                            {
-                                <form class="grant u-mt-2" method="post" asp-page-handler="Grant">
-                                    <input type="hidden" name="userId" value="@member.UserId" />
-
-                                    <label class="visually-hidden" for="grant-@member.UserId">
-                                        Vault to grant @member.DisplayName
-                                    </label>
-                                    <select class="select" id="grant-@member.UserId" name="vaultId">
-                                        @foreach (var vault in Model.Vaults)
-                                        {
-                                            <option value="@vault.Id">@vault.Name</option>
-                                        }
-                                    </select>
-
-                                    <label class="visually-hidden" for="perm-@member.UserId">
-                                        Permission
-                                    </label>
-                                    <select class="select" id="perm-@member.UserId" name="permission">
-                                        <option value="@VaultPermission.Read">Read</option>
-                                        <option value="@VaultPermission.Write"
-                                                disabled="@(member.Role == WorkspaceRole.Reader)">
-                                            Write
-                                        </option>
-                                    </select>
-
-                                    <button class="btn btn--secondary btn--sm" type="submit">Grant</button>
-                                </form>
-
-                                @if (member.Role == WorkspaceRole.Reader)
+                                @if (selected.Grants.Count == 0)
                                 {
                                     <p class="field__hint">
-                                        A reader is capped at read access even if granted write.
+                                        No vaults yet. They can sign in and see the workspace,
+                                        and will find nothing in it.
                                     </p>
                                 }
-                            }
-                        </td>
-                        <td class="u-end">
-                            <form method="post" asp-page-handler="Remove">
-                                <input type="hidden" name="userId" value="@member.UserId" />
-                                <button class="btn btn--quiet-danger btn--sm" type="submit">Remove</button>
-                            </form>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-</div>
+                                else
+                                {
+                                    <div class="detail__grants">
+                                        @foreach (var grant in selected.Grants)
+                                        {
+                                            <form class="u-inline" method="post" asp-page-handler="RevokeGrant">
+                                                <input type="hidden" name="userId" value="@selected.UserId" />
+                                                <input type="hidden" name="vaultId" value="@grant.VaultId" />
+                                                <button class="badge badge--button @(grant.Permission == VaultPermission.Write ? "badge--success" : "badge--neutral")"
+                                                        type="submit"
+                                                        title="Revoke access to @grant.VaultName">
+                                                    @grant.VaultName
+                                                    (@(grant.Permission == VaultPermission.Write ? "write" : "read"))
+                                                    <span aria-hidden="true">&times;</span>
+                                                    <span class="visually-hidden">Revoke</span>
+                                                </button>
+                                            </form>
+                                        }
+                                    </div>
+                                }
 
-<div class="card">
-    <div class="card__header">
-        <h2>Add a member</h2>
+                                @if (Model.Vaults.Count > 0)
+                                {
+                                    <form class="grant" method="post" asp-page-handler="Grant">
+                                        <input type="hidden" name="userId" value="@selected.UserId" />
+
+                                        <label class="visually-hidden" for="grant-vault">Vault</label>
+                                        <select class="select" id="grant-vault" name="vaultId">
+                                            @foreach (var vault in Model.Vaults)
+                                            {
+                                                <option value="@vault.Id">@vault.Name</option>
+                                            }
+                                        </select>
+
+                                        <label class="visually-hidden" for="grant-perm">Permission</label>
+                                        <select class="select" id="grant-perm" name="permission">
+                                            <option value="@VaultPermission.Read">Read</option>
+                                            <option value="@VaultPermission.Write"
+                                                    disabled="@(selected.Role == WorkspaceRole.Reader)">
+                                                Write
+                                            </option>
+                                        </select>
+
+                                        <button class="btn btn--secondary" type="submit">Grant</button>
+                                    </form>
+
+                                    @if (selected.Role == WorkspaceRole.Reader)
+                                    {
+                                        <p class="field__hint u-mt-2">
+                                            A reader is capped at read access even if granted write.
+                                        </p>
+                                    }
+                                }
+                            }
+                        </div>
+
+                        <div class="detail__section">
+                            <p class="detail__label">Remove</p>
+                            <p class="field__hint">
+                                Removing someone revokes every grant they hold here. Their
+                                account and the audit trail of what they did both remain.
+                            </p>
+
+                            <form class="u-mt-3" method="post" asp-page-handler="Remove">
+                                <input type="hidden" name="userId" value="@selected.UserId" />
+                                <button class="btn btn--quiet-danger" type="submit">
+                                    Remove @selected.DisplayName
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
     </div>
+}
+
+<details class="card u-section" id="add-member" open="@Model.AddOpen">
+    <summary class="card__header card__header--summary">
+        <h2>Add a member</h2>
+        <span class="field__hint">Creates an account and a one-time password</span>
+    </summary>
+
     <div class="card__body">
         <form method="post" asp-page-handler="Add">
             <div class="field">
@@ -243,4 +412,33 @@
             <button class="btn btn--primary" type="submit">Add member</button>
         </form>
     </div>
-</div>
+</details>
+
+@functions {
+    /// <summary>A monogram from a name, falling back to the address.</summary>
+    private static string Initials(string? name, string? email)
+    {
+        var source = string.IsNullOrWhiteSpace(name) ? email ?? string.Empty : name;
+        var parts = source.Split([' ', '.', '_', '-', '+', '@'], StringSplitOptions.RemoveEmptyEntries);
+
+        return parts.Length switch
+        {
+            0 => "?",
+            1 => parts[0][..1].ToUpperInvariant(),
+            _ => (parts[0][..1] + parts[1][..1]).ToUpperInvariant(),
+        };
+    }
+
+    /// <summary>What a role means here, in one sentence.</summary>
+    private static string RoleHint(WorkspaceRole role) => role switch
+    {
+        WorkspaceRole.Owner =>
+            "Full control, including purging secrets and rotating keys. An owner cannot be removed by an administrator.",
+        WorkspaceRole.Admin =>
+            "Manages vaults, members and service identities, and opens every vault without a grant.",
+        WorkspaceRole.Contributor =>
+            "Writes to the vaults granted below, and reads the rest of them.",
+        _ =>
+            "Reads the vaults granted below. A reader is never given write access, whatever a grant says.",
+    };
+}

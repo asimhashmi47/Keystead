@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Keystead.Application.Vaults;
 using Keystead.Application.Workspaces;
 using Keystead.Domain.Vaults;
 using Keystead.Domain.Workspaces;
+using Keystead.Web.Tables;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Keystead.Web.Pages;
@@ -15,9 +18,19 @@ namespace Keystead.Web.Pages;
 /// Members and roles, and which vaults each person can reach.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Role and permission are taken from named handler parameters, never model-bound onto an
 /// entity. Binding a role straight onto a membership row is the textbook mass-assignment
 /// escalation, and CLAUDE.md forbids it for exactly this page.
+/// </para>
+/// <para>
+/// The page is a list beside a panel. It used to be one table carrying a role select, a
+/// two-factor state, a chip per vault grant and a grant form on every row, which needed a
+/// horizontal scrollbar at 1440 px and put five controls in front of someone who came to read
+/// one. The list now answers "who is here"; the panel answers "what can this person do", for
+/// one person at a time. Which person is a query value, so the panel is part of the URL: it
+/// survives a sort, a filter and a page, and it can be sent to someone.
+/// </para>
 /// </remarks>
 public sealed class MembersModel : KeysteadPageModel
 {
@@ -44,8 +57,14 @@ public sealed class MembersModel : KeysteadPageModel
         _workspaces = workspaces;
     }
 
+    /// <summary>The query value naming the member shown in the detail panel.</summary>
+    public const string SelectionKey = "member";
+
     /// <summary>The workspace's members.</summary>
     public IReadOnlyList<MemberSummary> Items { get; private set; } = [];
+
+    /// <summary>The searched, sorted and paged table.</summary>
+    public TableView<MemberSummary>? Table { get; private set; }
 
     /// <summary>The vaults available to grant.</summary>
     public IReadOnlyList<VaultSummary> Vaults { get; private set; } = [];
@@ -56,9 +75,20 @@ public sealed class MembersModel : KeysteadPageModel
     /// <summary>Whether this principal holds the Owner role here.</summary>
     public bool IsOwner => Workspace?.Role is WorkspaceRole.Owner;
 
+    /// <summary>The member whose detail panel is open, or null.</summary>
+    public MemberSummary? Selected { get; private set; }
+
     /// <summary>The add-member form.</summary>
     [BindProperty]
     public AddMemberInput Input { get; set; } = new();
+
+    /// <summary>Whether the add-member form should be open on this response.</summary>
+    /// <remarks>
+    /// Open when it was just used and refused, so the details are still there to correct, and
+    /// when the person asked for it. Otherwise a page about reading who is here does not lead
+    /// with a form about adding someone.
+    /// </remarks>
+    public bool AddOpen { get; private set; }
 
     /// <summary>A generated one-time password, shown on this response only.</summary>
     public string? OneTimePassword { get; private set; }
@@ -83,7 +113,30 @@ public sealed class MembersModel : KeysteadPageModel
             return RedirectToPage("/Forbidden");
         }
 
+        AddOpen = Request.Query["add"] == "1";
+
         return Page();
+    }
+
+    /// <summary>Downloads the filtered member list.</summary>
+    /// <param name="format">The format, <c>xlsx</c> or <c>csv</c>.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>A file, or a redirect when unauthorized.</returns>
+    /// <remarks>
+    /// The same authorization, the same filter and the same columns as the page: the export is
+    /// built from the view the page would have rendered, so a spreadsheet can never hold a row
+    /// or a column the screen would not have shown.
+    /// </remarks>
+    public async Task<IActionResult> OnGetExportAsync(
+        string? format,
+        CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(cancellationToken).ConfigureAwait(false) || Table is null)
+        {
+            return RedirectToPage("/Forbidden");
+        }
+
+        return TableExport.ToFile(Table, TableExport.ParseFormat(format), "Members");
     }
 
     /// <summary>Adds a member.</summary>
@@ -100,6 +153,8 @@ public sealed class MembersModel : KeysteadPageModel
         {
             return RedirectToPage("/Forbidden");
         }
+
+        AddOpen = true;
 
         if (!ModelState.IsValid)
         {
@@ -132,7 +187,12 @@ public sealed class MembersModel : KeysteadPageModel
             Notice = $"{added.Value.Member.Email} was added. They sign in with their existing password.";
         }
 
-        await LoadAsync(cancellationToken).ConfigureAwait(false);
+        // The form is closed again and the new member's panel is opened instead, because the
+        // next thing anyone does after adding someone is grant them a vault.
+        AddOpen = false;
+        Input = new AddMemberInput();
+
+        await LoadAsync(cancellationToken, added.Value.Member.UserId).ConfigureAwait(false);
 
         return Page();
     }
@@ -147,7 +207,7 @@ public sealed class MembersModel : KeysteadPageModel
         WorkspaceRole role,
         CancellationToken cancellationToken)
     {
-        if (!await LoadAsync(cancellationToken).ConfigureAwait(false)
+        if (!await LoadAsync(cancellationToken, userId).ConfigureAwait(false)
             || CurrentPrincipal is not { } principal
             || Workspace is null)
         {
@@ -165,7 +225,7 @@ public sealed class MembersModel : KeysteadPageModel
         }
 
         Notice = "Role updated.";
-        return RedirectToPage();
+        return Reload(userId);
     }
 
     /// <summary>Removes a member.</summary>
@@ -176,7 +236,7 @@ public sealed class MembersModel : KeysteadPageModel
         Guid userId,
         CancellationToken cancellationToken)
     {
-        if (!await LoadAsync(cancellationToken).ConfigureAwait(false)
+        if (!await LoadAsync(cancellationToken, userId).ConfigureAwait(false)
             || CurrentPrincipal is not { } principal
             || Workspace is null)
         {
@@ -194,7 +254,9 @@ public sealed class MembersModel : KeysteadPageModel
         }
 
         Notice = "Member removed and their vault access revoked.";
-        return RedirectToPage();
+
+        // No selection: the person the panel was about is gone.
+        return Reload(null);
     }
 
     /// <summary>Grants a member access to a vault.</summary>
@@ -209,7 +271,7 @@ public sealed class MembersModel : KeysteadPageModel
         VaultPermission permission,
         CancellationToken cancellationToken)
     {
-        if (!await LoadAsync(cancellationToken).ConfigureAwait(false)
+        if (!await LoadAsync(cancellationToken, userId).ConfigureAwait(false)
             || CurrentPrincipal is not { } principal
             || Workspace is null)
         {
@@ -227,7 +289,7 @@ public sealed class MembersModel : KeysteadPageModel
         }
 
         Notice = "Access granted.";
-        return RedirectToPage();
+        return Reload(userId);
     }
 
     /// <summary>Revokes a member's access to a vault.</summary>
@@ -240,7 +302,7 @@ public sealed class MembersModel : KeysteadPageModel
         Guid vaultId,
         CancellationToken cancellationToken)
     {
-        if (!await LoadAsync(cancellationToken).ConfigureAwait(false)
+        if (!await LoadAsync(cancellationToken, userId).ConfigureAwait(false)
             || CurrentPrincipal is not { } principal
             || Workspace is null)
         {
@@ -258,10 +320,41 @@ public sealed class MembersModel : KeysteadPageModel
         }
 
         Notice = "Access revoked.";
-        return RedirectToPage();
+        return Reload(userId);
     }
 
-    private async Task<bool> LoadAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Redirects back to this page, keeping the table's query and the open panel.
+    /// </summary>
+    /// <remarks>
+    /// A redirect rather than a rendered page, so the browser's reload does not repeat the
+    /// action. Keeping the query means granting a vault to the fourth person on a filtered page
+    /// three leaves you looking at the fourth person on filtered page three.
+    /// </remarks>
+    private RedirectToPageResult Reload(Guid? selected)
+    {
+        var values = new Dictionary<string, string?>(StringComparer.Ordinal);
+
+        foreach (var pair in Request.Query)
+        {
+            if (!string.Equals(pair.Key, "handler", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(pair.Key, SelectionKey, StringComparison.OrdinalIgnoreCase))
+            {
+                values[pair.Key] = pair.Value.ToString();
+            }
+        }
+
+        if (selected is { } id)
+        {
+            values[SelectionKey] = id.ToString("D", CultureInfo.InvariantCulture);
+        }
+
+        return RedirectToPage("/Members", pageHandler: null, routeValues: values);
+    }
+
+    private async Task<bool> LoadAsync(
+        CancellationToken cancellationToken,
+        Guid? selectedOverride = null)
     {
         if (CurrentPrincipal is not { } principal)
         {
@@ -294,7 +387,116 @@ public sealed class MembersModel : KeysteadPageModel
 
         Vaults = vaults.IsSuccess ? vaults.Value : [];
 
+        var selected = selectedOverride
+            ?? (Guid.TryParse(Request.Query[SelectionKey], out var parsed) ? parsed : null);
+
+        // Resolved against the list the person is allowed to see, so naming a member of
+        // another workspace in the URL selects nobody rather than disclosing that they exist.
+        Selected = selected is { } id ? Items.FirstOrDefault(m => m.UserId == id) : null;
+
+        Table = TableEngine.Build(
+            Items,
+            Columns(),
+            TableQuery.FromRequest(Request),
+            id: "members",
+            label: "members",
+            path: Request.Path,
+            preserved: Selected is { } member
+                ? new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [SelectionKey] = member.UserId.ToString("D", CultureInfo.InvariantCulture),
+                }
+                : null);
+
         return true;
+    }
+
+    /// <summary>
+    /// The columns, declared once and used for the header, the filters, the sort and the export.
+    /// </summary>
+    private static IReadOnlyList<TableColumn<MemberSummary>> Columns() =>
+    [
+        new TableColumn<MemberSummary>
+        {
+            Key = "person",
+            Header = "Person",
+
+            // Both halves of the cell, so searching finds a person by either and an export
+            // carries what the cell showed.
+            Text = m => $"{m.DisplayName} ({m.Email})",
+            SortBy = m => m.DisplayName,
+        },
+        new TableColumn<MemberSummary>
+        {
+            Key = "role",
+            Header = "Role",
+            Text = m => m.Role.ToString(),
+
+            // Ordered by privilege rather than alphabetically: a role column sorted
+            // "Admin, Contributor, Owner, Reader" is sorted by nothing anyone cares about.
+            SortBy = m => (int)m.Role,
+            Options = [.. Enum.GetValues<WorkspaceRole>()
+                .Select(role => new TableOption(role.ToString(), role.ToString()))],
+        },
+        new TableColumn<MemberSummary>
+        {
+            Key = "mfa",
+            Header = "Two-factor",
+            Text = MfaText,
+            Options =
+            [
+                new TableOption("Enrolled", "Enrolled"),
+                new TableOption("Required, not set up", "Required, not set up"),
+                new TableOption("Optional", "Optional"),
+            ],
+            Hint = "Whether this person has a second factor, and whether their role demands one",
+        },
+        new TableColumn<MemberSummary>
+        {
+            Key = "vaults",
+            Header = "Vault access",
+            Text = VaultAccessText,
+            SortBy = m => m.HasImplicitVaultAccess ? int.MaxValue : m.Grants.Count,
+            Align = TableAlign.End,
+            Numeric = true,
+            Priority = TablePriority.Secondary,
+        },
+        new TableColumn<MemberSummary>
+        {
+            Key = "status",
+            Header = "Status",
+            Text = m => m.IsActive ? "Active" : "Deactivated",
+            Options =
+            [
+                new TableOption("Active", "Active"),
+                new TableOption("Deactivated", "Deactivated"),
+            ],
+            Priority = TablePriority.Secondary,
+        },
+    ];
+
+    /// <summary>The two-factor state as a word, for search, sort and export.</summary>
+    internal static string MfaText(MemberSummary member) => member switch
+    {
+        { MfaEnabled: true } => "Enrolled",
+        { RequiresMfa: true } => "Required, not set up",
+        _ => "Optional",
+    };
+
+    /// <summary>What a member can open, as text.</summary>
+    internal static string VaultAccessText(MemberSummary member)
+    {
+        if (member.HasImplicitVaultAccess)
+        {
+            return "Every vault";
+        }
+
+        return member.Grants.Count switch
+        {
+            0 => "No vaults",
+            1 => "1 vault",
+            var count => string.Create(CultureInfo.InvariantCulture, $"{count} vaults"),
+        };
     }
 }
 

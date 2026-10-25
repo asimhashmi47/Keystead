@@ -1,0 +1,78 @@
+@model Keystead.Web.Tables.TableChrome
+@*
+    Page links, rendered only when there is more than one page.
+
+    Anchors rather than a form, so every page of a table is a URL someone can bookmark, share
+    or open in a new tab. The window of numbers is kept small and always includes the first and
+    last page, because a pager that lists forty numbers is a pager nobody uses.
+*@
+@if (Model.PageCount > 1)
+{
+    var window = 2;
+    var from = Math.Max(1, Model.Page - window);
+    var to = Math.Min(Model.PageCount, Model.Page + window);
+
+    <nav class="pager" aria-label="@Model.Label pages">
+        @if (Model.HasPrevious)
+        {
+            <a class="pager__step" href="@Model.PageUrl(Model.Page - 1)" rel="prev">
+                <span aria-hidden="true">&larr;</span> Previous
+            </a>
+        }
+        else
+        {
+            <span class="pager__step is-disabled" aria-disabled="true">
+                <span aria-hidden="true">&larr;</span> Previous
+            </span>
+        }
+
+        <ol class="pager__pages">
+            @if (from > 1)
+            {
+                <li><a class="pager__page" href="@Model.PageUrl(1)">1</a></li>
+
+                @if (from > 2)
+                {
+                    <li class="pager__gap" aria-hidden="true">&hellip;</li>
+                }
+            }
+
+            @for (var number = from; number <= to; number++)
+            {
+                <li>
+                    @if (number == Model.Page)
+                    {
+                        <span class="pager__page is-current" aria-current="page">@number</span>
+                    }
+                    else
+                    {
+                        <a class="pager__page" href="@Model.PageUrl(number)">@number</a>
+                    }
+                </li>
+            }
+
+            @if (to < Model.PageCount)
+            {
+                @if (to < Model.PageCount - 1)
+                {
+                    <li class="pager__gap" aria-hidden="true">&hellip;</li>
+                }
+
+                <li><a class="pager__page" href="@Model.PageUrl(Model.PageCount)">@Model.PageCount</a></li>
+            }
+        </ol>
+
+        @if (Model.HasNext)
+        {
+            <a class="pager__step" href="@Model.PageUrl(Model.Page + 1)" rel="next">
+                Next <span aria-hidden="true">&rarr;</span>
+            </a>
+        }
+        else
+        {
+            <span class="pager__step is-disabled" aria-disabled="true">
+                Next <span aria-hidden="true">&rarr;</span>
+            </span>
+        }
+    </nav>
+}

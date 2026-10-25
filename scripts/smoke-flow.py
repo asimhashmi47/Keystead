@@ -299,9 +299,15 @@ check("vault creation is recorded", "VaultCreated" in html)
 check("rollback is recorded", "SecretRolledBack" in html)
 check("AUDIT LOG DOES NOT CONTAIN THE VALUE", SECRET_VALUE not in html)
 
-status, csvbody, headers = request("/audit?handler=Export")
+status, csvbody, headers = request("/audit?handler=Export&format=csv")
 check("CSV export works", status == 200 and "text/csv" in headers.get("Content-Type", ""))
 check("CSV does not contain the value", SECRET_VALUE not in csvbody)
+
+status, workbook, headers = request("/audit?handler=Export")
+check("export defaults to a workbook",
+      status == 200 and "spreadsheetml" in headers.get("Content-Type", ""),
+      headers.get("Content-Type", "none"))
+check("WORKBOOK DOES NOT CONTAIN THE VALUE", SECRET_VALUE not in workbook)
 
 
 print("\n=== 11. Service identity ===")

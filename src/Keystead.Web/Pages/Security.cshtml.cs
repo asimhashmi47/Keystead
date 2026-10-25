@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Keystead.Application.Identity;
 using Keystead.Infrastructure.Identity;
 using Keystead.Infrastructure.Persistence;
+using Keystead.Web.Tables;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -67,7 +69,29 @@ public sealed class SecurityModel : KeysteadPageModel
         DateTimeOffset CreatedUtc,
         DateTimeOffset LastSeenUtc,
         string CreatedIp,
-        string UserAgent);
+        string UserAgent)
+    {
+        /// <summary>The device in a few words, rather than a user agent string.</summary>
+        public string Device => DeviceSummary.Describe(UserAgent);
+    }
+
+    /// <summary>The searched, sorted and paged table.</summary>
+    public TableView<SessionRow>? Table { get; private set; }
+
+    /// <summary>Loads the page.</summary>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>The page.</returns>
+    public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
+    {
+        await LoadAsync(cancellationToken).ConfigureAwait(false);
+
+        return Table is null
+            ? RedirectToPage("/SignIn")
+            : TableExport.ToFile(
+                Table,
+                TableExport.ParseFormat(Request.Query["format"]),
+                "Sessions");
+    }
 
     /// <summary>Loads the page.</summary>
     /// <param name="cancellationToken">Cancels the operation.</param>
@@ -163,5 +187,72 @@ public sealed class SecurityModel : KeysteadPageModel
                 s.UserAgent))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        Table = TableEngine.Build(
+            Sessions,
+            Columns(),
+            TableQuery.FromRequest(Request),
+            id: "sessions",
+            label: "sessions",
+            path: Request.Path);
     }
+
+    /// <summary>
+    /// The columns, declared once and used for the header, the filters, the sort and the export.
+    /// </summary>
+    private static IReadOnlyList<TableColumn<SessionRow>> Columns() =>
+    [
+        new TableColumn<SessionRow>
+        {
+            Key = "device",
+            Header = "Device",
+            Text = s => s.IsCurrent ? $"{s.Device} (this device)" : s.Device,
+            SortBy = s => s.Device,
+        },
+        new TableColumn<SessionRow>
+        {
+            Key = "address",
+            Header = "Address",
+            Text = s => s.CreatedIp,
+        },
+        new TableColumn<SessionRow>
+        {
+            Key = "started",
+            Header = "Signed in",
+            Text = s => s.CreatedUtc.ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture),
+            SortBy = s => s.CreatedUtc,
+            Align = TableAlign.End,
+            Searchable = false,
+        },
+        new TableColumn<SessionRow>
+        {
+            Key = "seen",
+            Header = "Last active",
+            Text = s => s.LastSeenUtc.ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture),
+            SortBy = s => s.LastSeenUtc,
+            Align = TableAlign.End,
+            Searchable = false,
+            Priority = TablePriority.Secondary,
+        },
+        new TableColumn<SessionRow>
+        {
+            Key = "agent",
+            Header = "User agent",
+
+            // The full string, written to an export and never drawn. On screen it wraps across
+            // two lines and tells nobody anything; in a file it is what an investigation needs.
+            Text = s => s.UserAgent,
+            Priority = TablePriority.Hidden,
+        },
+        new TableColumn<SessionRow>
+        {
+            Key = "actions",
+            Header = "",
+            Text = _ => string.Empty,
+            Sortable = false,
+            Searchable = false,
+            Exported = false,
+            Align = TableAlign.End,
+        },
+    ];
 }

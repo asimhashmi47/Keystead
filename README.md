@@ -64,6 +64,12 @@ rotation are scoped to it rather than to the whole workspace.
 
 ![A vault](images/05-vault.png)
 
+Every table in the product works the same way: search across the columns, a filter per column,
+a sort on anything that can carry one, and a download as a workbook or as CSV. All of it lives
+in the URL, so a filtered view is a link.
+
+![A vault, filtered by environment](images/05b-vault-filtered.png)
+
 ### Revealing a value
 
 The value is never in the page markup. Revealing it is a `POST` with an antiforgery token
@@ -93,6 +99,11 @@ identity with its own credentials, its own vault scope, an optional IP allowlist
 with an overlap window so a deploy does not have to be atomic.
 
 ![Members](images/08-members.png)
+
+Choosing a person opens their panel: role, two-factor state, the vaults they can open, and the
+way out. The list answers who is here; the panel answers what one person can do.
+
+![A member's access](images/08b-member-detail.png)
 
 ![Service identities](images/09-identities.png)
 
@@ -169,7 +180,7 @@ so revoking one takes effect on the next request rather than when its token happ
 
 ## How it is verified
 
-**603 tests, all passing** — 466 unit, 25 integration, 112 security.
+**715 tests, all passing** — 569 unit, 25 integration, 121 security.
 
 The failure cases carry the weight: tamper on ciphertext, nonce and tag; wrong key; ciphertext
 moved to another workspace, vault, secret or version; purpose confusion; nonce uniqueness across
@@ -228,6 +239,32 @@ patched: the audit chain fails an action rather than lose an entry.
 
 Every measurement, the load test results, the twenty one attack attempts, the before-and-after
 numbers, and the scope of improvement are in **[FINDINGS.md](FINDINGS.md)**.
+
+### Every table is the same table
+
+Members, vaults, the secrets in a vault, service identities, sessions and the audit log are all
+rendered by one engine and one set of partials, so each of them has free-text search across its
+columns, a filter per column, a sort on every column that can carry one, paging, and a download
+as a real `.xlsx` workbook or as CSV.
+
+Four decisions worth stating, because each one was the alternative to something easier:
+
+- **A column is declared once.** The same declaration is the header, the filter, the sort key
+  and the export column. Writing those separately is how a spreadsheet quietly stops matching
+  the screen it was taken from.
+- **The state is the URL.** Search, filters, sort, page and the open detail panel all travel in
+  the query string, so a filtered view is a link someone can send. Nothing is kept in the
+  browser that the server does not already know.
+- **It works with scripting blocked.** The toolbar is a GET form with an Apply button, sorts and
+  pages are links, and the per-column filter row opens with a query value. The script removes a
+  click; it never adds a capability.
+- **The workbook is a workbook.** Not a CSV with the extension changed, which Excel offers to
+  repair. Every cell is an inline string, which is also why the file cannot carry a formula: an
+  exported audit log holds user agents that a caller chose, and it is the file a reviewer opens.
+
+The members page is a list beside a panel rather than a table carrying five controls on every
+row. A table that needs a horizontal scrollbar at 1440 px is a table that has been asked to do
+two jobs.
 
 ### Known gaps
 

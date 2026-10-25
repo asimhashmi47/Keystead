@@ -83,41 +83,40 @@
     }
     else
     {
+        var sessions = Model.Table!;
+
+        <partial name="_TableToolbar" model="sessions.Chrome" />
+
         <div class="table-wrap">
             <table class="table">
                 <caption class="visually-hidden">Your active sessions</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Signed in</th>
-                        <th scope="col">Last active</th>
-                        <th scope="col">Address</th>
-                        <th scope="col">Device</th>
-                        <th scope="col"><span class="visually-hidden">Actions</span></th>
-                    </tr>
-                </thead>
+
+                <partial name="_TableHead" model="sessions.Chrome" />
+
                 <tbody>
-                    @foreach (var session in Model.Sessions)
+                    @foreach (var session in sessions.Rows)
                     {
                         <tr>
                             <td>
+                                @session.Device
+                                @if (session.IsCurrent)
+                                {
+                                    <span class="badge badge--info u-ml-2">This device</span>
+                                }
+                            </td>
+                            <td><code>@session.CreatedIp</code></td>
+                            <td class="cell--end">
                                 <time datetime="@session.CreatedUtc.ToString("O")">
                                     @session.CreatedUtc.ToString("d MMM yyyy, HH:mm")
                                 </time>
-                                @if (session.IsCurrent)
-                                {
-                                    <span class="badge badge--info u-ml-2">
-                                        This device
-                                    </span>
-                                }
                             </td>
-                            <td>
+                            <td class="cell--end cell--secondary">
                                 <time datetime="@session.LastSeenUtc.ToString("O")">
                                     @session.LastSeenUtc.ToString("HH:mm")
                                 </time>
                             </td>
-                            <td><code>@session.CreatedIp</code></td>
-                            <td>@session.UserAgent</td>
-                            <td class="u-end">
+                            <td class="cell--hidden">@session.UserAgent</td>
+                            <td class="cell--end">
                                 @if (!session.IsCurrent)
                                 {
                                     <form method="post" asp-page-handler="Revoke">
@@ -133,5 +132,7 @@
                 </tbody>
             </table>
         </div>
+
+        <partial name="_TablePager" model="sessions.Chrome" />
     }
 </div>

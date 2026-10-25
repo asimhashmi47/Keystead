@@ -54,83 +54,105 @@
         </div>
     </div>
 }
-else
+else if (Model.Table is { } table)
 {
     <div class="card u-section">
-        <div class="card__header">
-            <h2>@Model.Items.Count vault@(Model.Items.Count == 1 ? "" : "s")</h2>
+        <partial name="_TableToolbar" model="table.Chrome" />
 
-            <a class="btn btn--ghost btn--sm"
+        <div class="tablebar tablebar--sub">
+            <a class="btn btn--ghost btn--sm @(Model.ShowDeleted ? "is-active" : null)"
                href="@(Model.ShowDeleted ? "/vaults" : "/vaults?deleted=true")">
-                @(Model.ShowDeleted ? "Hide deleted" : "Show deleted")
+                @(Model.ShowDeleted ? "Hide deleted vaults" : "Show deleted vaults")
             </a>
         </div>
 
-        <div class="table-wrap">
-            <table class="table">
-                <caption class="visually-hidden">Vaults in this workspace</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Vault</th>
-                        <th scope="col">Secrets</th>
-                        <th scope="col">Expiring soon</th>
-                        <th scope="col">Access</th>
-                        <th scope="col">Created</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var vault in Model.Items)
-                    {
-                        <tr>
-                            <td>
-                                <span class="badge badge--neutral dot--@vault.ColorToken">
-                                    <span class="badge__dot" aria-hidden="true"></span>
-                                </span>
-                                <a href="/vaults/@vault.Slug"><strong>@vault.Name</strong></a>
+        @if (table.IsEmpty)
+        {
+            <div class="table-empty">
+                <p class="table-empty__title">Nothing matches that</p>
+                <p class="table-empty__body">
+                    There are @table.Chrome.TotalCount vaults here. None of them match the
+                    current search.
+                </p>
+                <a class="btn btn--secondary btn--sm u-mt-4" href="@table.Chrome.ClearUrl">
+                    Clear the search
+                </a>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table">
+                    <caption class="visually-hidden">Vaults in this workspace</caption>
 
-                                @if (vault.SoftDeletedUtc is not null)
-                                {
-                                    <span class="badge badge--danger">Deleted</span>
-                                }
+                    <partial name="_TableHead" model="table.Chrome" />
 
-                                @if (vault.PurgeProtection)
-                                {
-                                    <span class="badge badge--info">Purge protected</span>
-                                }
+                    <tbody>
+                        @foreach (var vault in table.Rows)
+                        {
+                            <tr data-row-url="/vaults/@vault.Slug">
+                                <td>
+                                    <a class="row-link" href="/vaults/@vault.Slug">
+                                        <span class="u-row u-row--center">
+                                            <span class="badge badge--neutral dot--@vault.ColorToken">
+                                                <span class="badge__dot" aria-hidden="true"></span>
+                                            </span>
+                                            <span class="row-link__title">@vault.Name</span>
+                                        </span>
 
-                                @if (!string.IsNullOrEmpty(vault.Description))
-                                {
-                                    <div class="field__hint">@vault.Description</div>
-                                }
-                            </td>
-                            <td>@vault.SecretCount</td>
-                            <td>
-                                @if (vault.ExpiringSoonCount > 0)
-                                {
-                                    <span class="badge badge--warning">
-                                        @vault.ExpiringSoonCount
+                                        @if (!string.IsNullOrEmpty(vault.Description))
+                                        {
+                                            <span class="field__hint">@vault.Description</span>
+                                        }
+                                    </a>
+                                </td>
+                                <td class="cell--end">@vault.SecretCount</td>
+                                <td class="cell--end">
+                                    @if (vault.ExpiringSoonCount > 0)
+                                    {
+                                        <span class="badge badge--warning">
+                                            @vault.ExpiringSoonCount
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="field__hint">None</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge @(vault.Permission == VaultPermission.Write ? "badge--success" : "badge--neutral")">
+                                        @(vault.Permission == VaultPermission.Write ? "Read and write" : "Read only")
                                     </span>
-                                }
-                                else
-                                {
-                                    <span class="field__hint">None</span>
-                                }
-                            </td>
-                            <td>
-                                <span class="badge @(vault.Permission == VaultPermission.Write ? "badge--success" : "badge--neutral")">
-                                    @(vault.Permission == VaultPermission.Write ? "Read and write" : "Read only")
-                                </span>
-                            </td>
-                            <td>
-                                <time datetime="@vault.CreatedUtc.ToString("O")">
-                                    @vault.CreatedUtc.ToString("d MMM yyyy")
-                                </time>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+                                </td>
+                                <td class="cell--secondary">
+                                    @if (vault.SoftDeletedUtc is not null)
+                                    {
+                                        <span class="badge badge--danger">Deleted</span>
+                                    }
+                                    else if (vault.PurgeProtection)
+                                    {
+                                        <span class="badge badge--info">Purge protected</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge--success">
+                                            <span class="badge__dot" aria-hidden="true"></span> Active
+                                        </span>
+                                    }
+                                </td>
+                                <td class="cell--end cell--secondary">
+                                    <time datetime="@vault.CreatedUtc.ToString("O")">
+                                        @vault.CreatedUtc.ToString("d MMM yyyy")
+                                    </time>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <partial name="_TablePager" model="table.Chrome" />
+        }
     </div>
 }
 

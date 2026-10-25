@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,6 +10,7 @@ using Keystead.Application.Vaults;
 using Keystead.Application.Workspaces;
 using Keystead.Domain.Vaults;
 using Keystead.Domain.Workspaces;
+using Keystead.Web.Tables;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Keystead.Web.Pages;
@@ -49,6 +51,9 @@ public sealed class IdentitiesModel : KeysteadPageModel
 
     /// <summary>The workspace's identities.</summary>
     public IReadOnlyList<ServiceIdentitySummary> Items { get; private set; } = [];
+
+    /// <summary>The searched, sorted and paged table.</summary>
+    public TableView<ServiceIdentitySummary>? Table { get; private set; }
 
     /// <summary>The vaults available to scope against.</summary>
     public IReadOnlyList<VaultSummary> Vaults { get; private set; } = [];
@@ -91,6 +96,28 @@ public sealed class IdentitiesModel : KeysteadPageModel
         await LoadAsync(cancellationToken).ConfigureAwait(false)
             ? Page()
             : RedirectToPage("/SignIn");
+
+    /// <summary>
+    /// Downloads the filtered identity list.
+    /// </summary>
+    /// <param name="format">The format, <c>xlsx</c> or <c>csv</c>.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>A file, or a redirect when unauthorized.</returns>
+    /// <remarks>
+    /// Client ids, not client secrets. A secret is shown once, at creation, and only its
+    /// Argon2id digest is kept, so there is nothing here that could be written to a file.
+    /// </remarks>
+    public async Task<IActionResult> OnGetExportAsync(
+        string? format,
+        CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(cancellationToken).ConfigureAwait(false) || Table is null)
+        {
+            return RedirectToPage("/SignIn");
+        }
+
+        return TableExport.ToFile(Table, TableExport.ParseFormat(format), "Service identities");
+    }
 
     /// <summary>Creates an identity and shows its one-time secret.</summary>
     /// <param name="cancellationToken">Cancels the operation.</param>
@@ -253,7 +280,112 @@ public sealed class IdentitiesModel : KeysteadPageModel
 
         Vaults = vaults.IsSuccess ? vaults.Value : [];
 
+        Table = TableEngine.Build(
+            Items,
+            Columns(Now),
+            TableQuery.FromRequest(Request),
+            id: "identities",
+            label: "identities",
+            path: Request.Path);
+
         return true;
+    }
+
+    /// <summary>
+    /// The columns, declared once and used for the header, the filters, the sort and the export.
+    /// </summary>
+    /// <param name="now">The instant expiry is judged against.</param>
+    /// <returns>The columns.</returns>
+    private static IReadOnlyList<TableColumn<ServiceIdentitySummary>> Columns(DateTimeOffset now) =>
+    [
+        new TableColumn<ServiceIdentitySummary>
+        {
+            Key = "name",
+            Header = "Name",
+            Text = i => i.Name,
+        },
+        new TableColumn<ServiceIdentitySummary>
+        {
+            Key = "client",
+            Header = "Client ID",
+            Text = i => i.ClientId,
+            Priority = TablePriority.Secondary,
+        },
+        new TableColumn<ServiceIdentitySummary>
+        {
+            Key = "vaults",
+            Header = "Can reach",
+            Text = i => i.Scopes.Count == 0
+                ? "No vaults"
+                : string.Join(", ", i.Scopes.Select(s =>
+                    $"{s.VaultName} ({(s.Permission == VaultPermission.Write ? "write" : "read")})")),
+            SortBy = i => i.Scopes.Count,
+        },
+        new TableColumn<ServiceIdentitySummary>
+        {
+            Key = "status",
+            Header = "Status",
+            Text = i => Status(i, now),
+            Options =
+            [
+                new TableOption("Active", "Active"),
+                new TableOption("Rotating", "Rotating"),
+                new TableOption("Expired", "Expired"),
+                new TableOption("Revoked", "Revoked"),
+            ],
+        },
+        new TableColumn<ServiceIdentitySummary>
+        {
+            Key = "used",
+            Header = "Last used",
+            Text = i => i.LastUsedUtc?.ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture) ?? "Never",
+
+            // Null rather than a sentinel date, so an identity that has never been used sorts
+            // to the bottom whichever way the column is ordered rather than pretending to be
+            // either the oldest or the newest.
+            SortBy = i => i.LastUsedUtc,
+            Align = TableAlign.End,
+            Priority = TablePriority.Secondary,
+        },
+        new TableColumn<ServiceIdentitySummary>
+        {
+            Key = "allowlist",
+            Header = "Allowed from",
+            Text = i => i.IpAllowlist.Count == 0 ? "Anywhere" : string.Join(", ", i.IpAllowlist),
+
+            // Exported, never drawn: the cell already carries it under the name, and a column
+            // of CIDR ranges is not something anyone scans down.
+            Priority = TablePriority.Hidden,
+        },
+        new TableColumn<ServiceIdentitySummary>
+        {
+            Key = "actions",
+            Header = "",
+            Text = _ => string.Empty,
+            Sortable = false,
+            Searchable = false,
+            Exported = false,
+            Align = TableAlign.End,
+        },
+    ];
+
+    /// <summary>A service identity's state as one word.</summary>
+    internal static string Status(ServiceIdentitySummary identity, DateTimeOffset now)
+    {
+        if (!identity.IsActive)
+        {
+            return "Revoked";
+        }
+
+        if (identity.ExpiresUtc is { } expires && expires <= now)
+        {
+            return "Expired";
+        }
+
+        // Rotating is a state on top of being active, and the one that matters when it is
+        // true: it is the window in which two secrets work, and it is the thing an operator
+        // is waiting to see end.
+        return identity.HasPendingRotation ? "Rotating" : "Active";
     }
 }
 

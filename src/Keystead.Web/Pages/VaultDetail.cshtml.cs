@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -9,6 +11,7 @@ using Keystead.Application.Secrets;
 using Keystead.Application.Vaults;
 using Keystead.Application.Workspaces;
 using Keystead.Domain.Vaults;
+using Keystead.Web.Tables;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Keystead.Web.Pages;
@@ -43,14 +46,6 @@ public sealed class VaultDetailModel : KeysteadPageModel
     [BindProperty(SupportsGet = true)]
     public string Slug { get; set; } = string.Empty;
 
-    /// <summary>Free-text search over secret names.</summary>
-    [BindProperty(SupportsGet = true, Name = "q")]
-    public string? Search { get; set; }
-
-    /// <summary>Environment filter.</summary>
-    [BindProperty(SupportsGet = true, Name = "env")]
-    public string? EnvironmentFilter { get; set; }
-
     /// <summary>Whether soft-deleted secrets are shown.</summary>
     [BindProperty(SupportsGet = true, Name = "deleted")]
     public bool ShowDeleted { get; set; }
@@ -62,7 +57,15 @@ public sealed class VaultDetailModel : KeysteadPageModel
     public WorkspaceMembershipView? Workspace { get; private set; }
 
     /// <summary>The secrets in this vault, as metadata only.</summary>
+    /// <remarks>
+    /// Metadata, and never a value. A list is the one place where loading values would be
+    /// invisible and catastrophic: nothing on screen would change, and every secret in the
+    /// vault would have been decrypted to render a page about their names.
+    /// </remarks>
     public IReadOnlyList<SecretSummary> Secrets { get; private set; } = [];
+
+    /// <summary>The searched, sorted and paged table.</summary>
+    public TableView<SecretSummary>? Table { get; private set; }
 
     /// <summary>The distinct environment labels present, for the filter.</summary>
     public IReadOnlyList<string> Environments { get; private set; } = [];
@@ -92,6 +95,32 @@ public sealed class VaultDetailModel : KeysteadPageModel
         var loaded = await LoadAsync(cancellationToken).ConfigureAwait(false);
 
         return loaded ? Page() : NotFound();
+    }
+
+    /// <summary>
+    /// Downloads the filtered secret list as metadata.
+    /// </summary>
+    /// <param name="format">The format, <c>xlsx</c> or <c>csv</c>.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>A file, or 404 when the vault is unreachable.</returns>
+    /// <remarks>
+    /// Names, environments, versions, states and dates. No values: the page model never loads
+    /// one, so there is none here to write. That is a property of where the export is built
+    /// from, not a filter applied to it, which is the only version of this that stays true.
+    /// </remarks>
+    public async Task<IActionResult> OnGetExportAsync(
+        string? format,
+        CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(cancellationToken).ConfigureAwait(false) || Table is null)
+        {
+            return NotFound();
+        }
+
+        return TableExport.ToFile(
+            Table,
+            TableExport.ParseFormat(format),
+            $"{Vault?.Name ?? "Vault"} secrets");
     }
 
     /// <summary>Creates a secret in this vault.</summary>
@@ -186,41 +215,125 @@ public sealed class VaultDetailModel : KeysteadPageModel
 
         Vault = found.Value;
 
+        // One listing, filtered in the page rather than in the query. Searching and sorting
+        // belong to the table, which already has to hold every row it might page through; the
+        // service keeps the one filter that changes what may be read at all.
         var listed = await _secrets.ListAsync(
             principal,
             Workspace.WorkspaceId,
             Vault.Id,
-            new SecretFilter(
-                Search: Search,
-                Environment: EnvironmentFilter,
-                IncludeDeleted: ShowDeleted),
+            new SecretFilter(IncludeDeleted: ShowDeleted),
             cancellationToken).ConfigureAwait(false);
 
         Secrets = listed.IsSuccess ? listed.Value : [];
 
-        // Built from an unfiltered listing so the environment filter does not hide its own
-        // other options once one is applied.
-        var all = await _secrets.ListAsync(
-            principal,
-            Workspace.WorkspaceId,
-            Vault.Id,
-            new SecretFilter(IncludeDeleted: true),
-            cancellationToken).ConfigureAwait(false);
+        var environments = new SortedSet<string>(StringComparer.Ordinal);
 
-        if (all.IsSuccess)
+        foreach (var secret in Secrets)
         {
-            var environments = new SortedSet<string>(StringComparer.Ordinal);
-
-            foreach (var secret in all.Value)
-            {
-                environments.Add(secret.Environment);
-            }
-
-            Environments = [.. environments];
+            environments.Add(secret.Environment);
         }
+
+        Environments = [.. environments];
+
+        Table = TableEngine.Build(
+            Secrets,
+            Columns(Environments, Now),
+            TableQuery.FromRequest(Request),
+            id: "secrets",
+            label: "secrets",
+            path: Request.Path,
+            preserved: ShowDeleted
+                ? new Dictionary<string, string?>(StringComparer.Ordinal) { ["deleted"] = "true" }
+                : null);
 
         return true;
     }
+
+    /// <summary>
+    /// The columns, declared once and used for the header, the filters, the sort and the export.
+    /// </summary>
+    /// <param name="environments">The environment labels present, for that column's filter.</param>
+    /// <param name="now">The instant expiry is judged against.</param>
+    /// <returns>The columns.</returns>
+    private static IReadOnlyList<TableColumn<SecretSummary>> Columns(
+        IReadOnlyList<string> environments,
+        DateTimeOffset now) =>
+    [
+        new TableColumn<SecretSummary>
+        {
+            Key = "name",
+            Header = "Name",
+
+            // The tags too: they are how people label ownership here, and "owner: payments"
+            // is a search someone will type.
+            Text = s => s.Tags.Count == 0
+                ? s.Name
+                : $"{s.Name} {string.Join(' ', s.Tags.Select(t => $"{t.Key}: {t.Value}"))}",
+            SortBy = s => s.Name,
+        },
+        new TableColumn<SecretSummary>
+        {
+            Key = "environment",
+            Header = "Environment",
+            Text = s => s.Environment,
+            Options = [.. environments.Select(e => new TableOption(e, e))],
+        },
+        new TableColumn<SecretSummary>
+        {
+            Key = "versions",
+            Header = "Versions",
+            Text = s => string.Create(CultureInfo.InvariantCulture, $"v{s.LatestVersion} of {s.VersionCount}"),
+            SortBy = s => s.VersionCount,
+            Align = TableAlign.End,
+            Numeric = true,
+            Searchable = false,
+        },
+        new TableColumn<SecretSummary>
+        {
+            Key = "status",
+            Header = "Status",
+            Text = s => Status(s, now),
+            Options =
+            [
+                new TableOption("Active", "Active"),
+                new TableOption("Expiring soon", "Expiring soon"),
+                new TableOption("Expired", "Expired"),
+                new TableOption("Disabled", "Disabled"),
+                new TableOption("Deleted", "Deleted"),
+            ],
+        },
+        new TableColumn<SecretSummary>
+        {
+            Key = "updated",
+            Header = "Updated",
+            Text = s => s.UpdatedUtc.ToString("d MMM yyyy", CultureInfo.InvariantCulture),
+            SortBy = s => s.UpdatedUtc,
+            Align = TableAlign.End,
+            Priority = TablePriority.Secondary,
+        },
+    ];
+
+    /// <summary>
+    /// A secret's state as one word, in the order that matters.
+    /// </summary>
+    /// <remarks>
+    /// Deleted beats disabled beats expired beats expiring. A secret can be several of these at
+    /// once, and the cell, the filter and the export all have to agree on which one it is
+    /// called, which is why there is one function rather than a chain of conditions in the
+    /// markup.
+    /// </remarks>
+    internal static string Status(SecretSummary secret, DateTimeOffset now) => secret switch
+    {
+        { SoftDeletedUtc: not null } => "Deleted",
+        { Enabled: false } => "Disabled",
+        _ when secret.IsExpired(now) => "Expired",
+        _ when secret.IsExpiringSoon(now, ExpiryWarning) => "Expiring soon",
+        _ => "Active",
+    };
+
+    /// <summary>How far ahead an expiry counts as soon.</summary>
+    internal static readonly TimeSpan ExpiryWarning = TimeSpan.FromDays(30);
 }
 
 /// <summary>The add-secret form's fields.</summary>

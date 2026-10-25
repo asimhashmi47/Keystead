@@ -197,6 +197,10 @@ PAGES = [
     ("03-dashboard.png", "/", 2600),
     ("04-vaults.png", "/vaults", 1500),
     ("05-vault.png", "/vaults/production", 1500),
+
+    # Opened with the per-column filter row showing and a filter applied, because the
+    # screenshot is of the table chrome as much as of the secrets in it.
+    ("05b-vault-filtered.png", "/vaults/production?filters=1&c.environment=prod&sort=name", 1500),
     ("07-audit.png", "/audit", 1700),
     ("08-members.png", "/members", 1500),
     ("09-identities.png", "/identities", 1200),
@@ -279,6 +283,22 @@ if secret_url:
     metrics(WIDTH, 900)
 else:
     print("  could not find the secret link")
+
+# The members page with a person chosen, which is the half of it that does the work.
+print("Member detail...")
+goto(f"{BASE}/members")
+member_url = js("""
+(() => {
+  const a = [...document.querySelectorAll('a[href*="member="]')][2];
+  return a ? a.getAttribute('href') : null;
+})()
+""")
+
+if member_url:
+    goto(BASE + member_url)
+    shot("08b-member-detail.png", max_height=1500)
+else:
+    print("  no member link found")
 
 # The command palette, opened the way the shortcut opens it.
 print("Command palette...")

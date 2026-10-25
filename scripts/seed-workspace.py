@@ -213,20 +213,55 @@ for email, name, role in MEMBERS:
     }, token_from="/members")
     print(f"  {name} ({role})")
 
-# Grant a couple of the non-admin members access to specific vaults.
+# Grant the non-admin members access to specific vaults. Admins and owners reach every vault
+# without a grant, so the ones worth granting are the readers and contributors.
+#
+# The ids come from the row links rather than from a hidden field: the hidden userId fields
+# live in the detail panel, which exists only once a row has been chosen, so a list page has
+# none of them.
 _, html, _ = request("/members")
-user_ids = re.findall(r'name="userId" value="([0-9a-f-]{36})"', html)
-vault_options = re.findall(r'<option value="([0-9a-f-]{36})">([^<]+)</option>', html)
+# Each row carries its id twice, once in the link and once for the pointer handler, so the
+# matches are deduplicated while keeping the order the page listed them in.
+user_ids = list(dict.fromkeys(re.findall(r"member=([0-9a-f-]{36})", html)))
 
-if user_ids and vault_options:
-    for user_id in user_ids[:3]:
-        for vault_id, _ in vault_options[:2]:
-            post("/members?handler=Grant", {
-                "userId": user_id,
-                "vaultId": vault_id,
-                "permission": "Read",
-            }, token_from="/members")
-    print(f"  granted vault access to {min(3, len(user_ids))} members")
+granted = 0
+
+for index, user_id in enumerate(user_ids):
+    # The grant form, and the vaults it offers, are in that member's panel.
+    _, panel, _ = request(f"/members?member={user_id}")
+
+    if "handler=Grant" not in panel:
+        # An administrator or the owner: nothing to grant.
+        continue
+
+    vaults = re.findall(r'<option value="([0-9a-f-]{36})">([^<]+)</option>', panel)
+
+    if not vaults:
+        continue
+
+    # A spread rather than the same vault for everyone, so the list has something to show:
+    # write where the role allows it, read where it does not.
+    chosen = vaults[index % len(vaults)]
+    permission = "Write" if "Contributor" in panel.split("Save role")[0][-2000:] else "Read"
+
+    post("/members?handler=Grant", {
+        "userId": user_id,
+        "vaultId": chosen[0],
+        "permission": permission,
+    }, token_from=f"/members?member={user_id}")
+
+    # A second vault for some of them, so the grant chips are not all one to a person.
+    if index % 2 == 0 and len(vaults) > 1:
+        second = vaults[(index + 1) % len(vaults)]
+        post("/members?handler=Grant", {
+            "userId": user_id,
+            "vaultId": second[0],
+            "permission": "Read",
+        }, token_from=f"/members?member={user_id}")
+
+    granted += 1
+
+print(f"  granted vault access to {granted} members")
 
 print("Creating service identities...")
 _, html, _ = request("/identities")

@@ -13,6 +13,7 @@ the command that produced it is named. Where something was not established, it s
 - [What the adversarial pass found](#what-the-adversarial-pass-found)
 - [What fixing the findings turned up](#what-fixing-the-findings-turned-up)
 - [The finding that was accepted rather than fixed](#the-finding-that-was-accepted-rather-than-fixed)
+- [What the interface pass changed](#what-the-interface-pass-changed)
 - [Scope of improvement](#scope-of-improvement)
 
 ---
@@ -390,7 +391,7 @@ by the server rather than by anything a client sent.
 ### Confirmed afterwards
 
 - `dotnet build` - 0 warnings, 0 errors. `dotnet format --verify-no-changes` - clean.
-- **603 tests pass**: 466 unit, 25 integration, 112 security.
+- **715 tests pass**: 569 unit, 25 integration, 121 security.
 - The adversarial pass was re-run against the changed pipeline: **21 of 21 attacks still
   refused**.
 
@@ -420,6 +421,75 @@ policy, so contention becomes a measured wait instead of a retry budget. That is
 decision about how the product behaves when it is overloaded, not a defect to patch, and it
 belongs with the work in the next section rather than in a fix made under the pressure of a
 finding.
+
+---
+
+## What the interface pass changed
+
+Two of the improvement items above were worked through rather than left listed, and doing so
+turned one table into six.
+
+### The members page was doing two jobs
+
+A role select, a two-factor state, a chip per vault grant, a grant form and a remove button, on
+every row. At 1440 px it needed a horizontal scrollbar, and the first thing it asked of someone
+who came to read who was in the workspace was to parse five controls per person.
+
+It is now a list beside a panel. The list answers "who is here"; the panel answers "what can
+this person do", for one person at a time. Which person is a query value, so the panel is part
+of the URL: it survives a sort, a filter and a page, and it can be sent to someone.
+
+The table drops to three columns when a panel is open and shows all five when none is, using a
+container query rather than a media query — the same table is wide on its own and narrow beside
+a panel, and the width of the window cannot tell those two apart.
+
+### The device column rendered a user agent string
+
+`Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)
+Chrome/131.0.0.0 Safari/537.36`, wrapped across two lines, in a page whose one question is
+whether you recognise these sessions. It now reads "Chrome on Windows", and the exact string is
+kept and written to the export for anyone who needs the truth.
+
+The order of the checks is the whole implementation, because every browser lies about being the
+others: Edge carries "Chrome", Chrome carries "Safari", an iPhone carries "like Mac OS X". Each
+of those has a test.
+
+### Everything else followed from doing it once
+
+Rather than six pages each growing their own search box, the chrome became one engine and three
+partials. Each table declares its columns once, and that declaration is the header, the filter,
+the sort key and the export column.
+
+What each table gained: free-text search across its columns, a filter per column (a text box, or
+a select where the values are a closed set), a sort on every column that can carry one, paging,
+and a download as a real `.xlsx` workbook or as CSV.
+
+Four decisions worth writing down:
+
+- **The state is the URL.** Search, filters, sort, page and the open panel all travel in the
+  query string. A filtered view is a link, and nothing is kept in the browser that the server
+  does not already know.
+- **It works with scripting blocked.** The toolbar is a `GET` form with an Apply button, sorts
+  and pages are links, and the filter row opens with a query value. The script debounces typing
+  and restores the caret; it adds no capability.
+- **The query is clamped, never refused.** An unknown sort key sorts by nothing, a page past the
+  end shows the last page, a term of five thousand characters is truncated, an unparseable page
+  is page one. A table is a read, and no URL anyone can type should turn one into an error.
+- **The workbook is a workbook.** Not a CSV with the extension changed, which Excel offers to
+  repair. Every cell is an inline string, which is also why this format cannot carry a formula:
+  the CSV export has to prefix a leading `=` to defend itself, and the workbook does not.
+
+The audit log is the exception that proves the arrangement. It is the one table that grows
+without limit, so it keeps its server-side filter and paging and borrows only the chrome. That
+immediately produced a defect worth having: a page past the end of a filtered result showed an
+empty table under a toolbar reporting rows, because the count is only known once the query has
+run. It now re-queries the last page, which costs a second query in the one case that needs it.
+
+**A list page had been a scrape target.** Both the seeding script and the adversarial probe read
+member ids out of a hidden `userId` field that now lives in the detail panel. The probe skipped
+its privilege-escalation test in silence, and the seed quietly granted nobody anything. Neither
+is a defect in the product, and both are worth recording: a test that cannot find what it needs
+and says nothing is worse than one that fails.
 
 ---
 
@@ -461,14 +531,13 @@ what would matter most to someone actually running this.
 
 ### Interface
 
-11. **The members page is doing too much.** A role select, a two-factor state, grant chips and a
-    grant form on every row, in a table that needs a horizontal scrollbar at 1440 px. It wants
-    to be a detail panel.
-12. **Empty states.** A new workspace lands on a dashboard of zeroes with nothing suggesting
-    what to do first.
-13. **Bulk operations.** Rotating twelve secrets means twelve round trips through the interface.
-14. **Device summaries in the security centre.** It renders the raw user agent string, which
-    wraps across two lines and tells nobody anything.
+11. **Empty states.** A new workspace lands on a dashboard of zeroes with nothing suggesting
+    what to do first. The tables now have proper empty states; the dashboard does not.
+12. **Bulk operations.** Rotating twelve secrets means twelve round trips through the interface.
+13. **Saved views.** A filtered table is a URL, which is most of the way there; what is missing
+    is somewhere to keep one.
+14. **A date filter that understands dates.** The per-column filter on a date column matches its
+    rendered text, so "Oct" works and "last week" does not.
 
 ### Accessibility
 

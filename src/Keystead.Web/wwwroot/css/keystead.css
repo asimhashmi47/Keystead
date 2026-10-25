@@ -778,6 +778,572 @@ code, kbd, pre, samp {
 .table tbody tr:hover { background: var(--color-surface-sunken); }
 
 /* ===========================================================================
+   A card that opens
+   ---------------------------------------------------------------------------
+   details/summary rather than a script toggle: it opens with scripting blocked,
+   it is keyboard operable without any help, and the open state is the element's
+   own rather than a class somebody has to keep in step.
+   =========================================================================== */
+.card__header--summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+/* Safari draws its own triangle through ::-webkit-details-marker. */
+.card__header--summary::-webkit-details-marker { display: none; }
+
+.card__header--summary::after {
+    content: "";
+    margin-left: auto;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-right: 2px solid var(--color-text-muted);
+    border-bottom: 2px solid var(--color-text-muted);
+    transform: rotate(45deg) translateY(-2px);
+    transition: transform var(--duration-base) var(--ease-out);
+}
+
+details[open] > .card__header--summary::after {
+    transform: rotate(225deg) translateY(-2px);
+}
+
+.card__header--summary:hover { background: var(--color-surface-sunken); }
+
+.card__header--summary:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: -2px;
+}
+
+/* ===========================================================================
+   Table chrome: toolbar, sortable headers, filter row, chips, pager
+   ---------------------------------------------------------------------------
+   One set of rules for every table in the application. A table here is the
+   primary way people read this product, so the chrome is held to the same
+   standard as the content: one row of controls, no modal, no second scrollbar,
+   and nothing that moves unless the person moved it.
+   =========================================================================== */
+.tablebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-border-subtle);
+    background:
+        linear-gradient(180deg, var(--color-surface) 0%, var(--color-surface-sunken) 100%);
+}
+
+/* A second, quieter bar for a control that belongs to the page, not the table. */
+.tablebar--sub {
+    flex-direction: row;
+    align-items: center;
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+    background: var(--color-surface);
+}
+
+.tablebar__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+/* The search box takes the slack, so the actions stay put as the page widens. */
+.tablebar__search {
+    position: relative;
+    flex: 1 1 15rem;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
+.tablebar__search-icon {
+    position: absolute;
+    left: var(--space-3);
+    width: 1.0625rem;
+    height: 1.0625rem;
+    fill: var(--color-text-muted);
+    pointer-events: none;
+}
+
+.tablebar__search-input {
+    width: 100%;
+    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-8);
+    font: inherit;
+    font-size: var(--text-base);
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: border-color var(--duration-fast) var(--ease-out),
+                box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.tablebar__search-input::placeholder { color: var(--color-text-muted); }
+
+.tablebar__search-input:focus {
+    outline: none;
+    border-color: var(--color-focus);
+    box-shadow: var(--shadow-focus);
+}
+
+/*
+ * The clear affordance a search input draws for itself is removed: it is
+ * inconsistent between engines, it does not submit the form, and the active
+ * filters are already removable as chips below.
+ */
+.tablebar__search-input::-webkit-search-cancel-button { appearance: none; }
+
+.tablebar__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.tablebar__export {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.tablebar__alt {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.tablebar__alt:hover {
+    color: var(--color-primary-text);
+    background: var(--color-primary-soft);
+}
+
+.btn__icon {
+    width: 0.9375rem;
+    height: 0.9375rem;
+    fill: currentColor;
+    flex: none;
+}
+
+/* A pressed state the ghost button does not otherwise have. */
+.btn--ghost.is-active {
+    color: var(--color-primary-text);
+    background: var(--color-primary-soft);
+    border-color: var(--color-primary);
+}
+
+.tablebar__chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* Each active filter, removable on its own. */
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    max-width: 22rem;
+    padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+    font-size: var(--text-xs);
+    text-decoration: none;
+    color: var(--color-primary-text);
+    background: var(--color-primary-soft);
+    border: 1px solid var(--indigo-200);
+    border-radius: var(--radius-full);
+    transition: background var(--duration-fast) var(--ease-out);
+}
+
+.chip:hover { background: var(--indigo-100); }
+
+.chip__label {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    font-size: 0.6875rem;
+    opacity: 0.75;
+}
+
+.chip__value {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chip__clear {
+    font-size: var(--text-md);
+    line-height: 1;
+    opacity: 0.6;
+}
+
+.chip:hover .chip__clear { opacity: 1; }
+
+.tablebar__clear {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+.tablebar__count {
+    margin: 0;
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+}
+
+.tablebar__total {
+    margin-left: var(--space-2);
+    padding-left: var(--space-2);
+    border-left: 1px solid var(--color-border);
+}
+
+/* --- Sortable headers ---------------------------------------------------- */
+.th-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: inherit;
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    transition: color var(--duration-fast) var(--ease-out);
+}
+
+.th-sort:hover { color: var(--color-primary-text); }
+
+.th-sort.is-sorted { color: var(--color-text); }
+
+.th-sort__mark {
+    width: 0.625rem;
+    height: 0.625rem;
+    fill: currentColor;
+    flex: none;
+}
+
+/*
+ * The unsorted glyph is present but faint, and comes up to full strength on
+ * hover or keyboard focus. Showing it only on hover hides from a keyboard and a
+ * touch screen that the column sorts at all.
+ */
+.th-sort__mark--idle { opacity: 0.3; }
+
+.th-sort:hover .th-sort__mark--idle,
+.th-sort:focus-visible .th-sort__mark--idle { opacity: 0.75; }
+
+/* --- The per-column filter row ------------------------------------------- */
+.table__filters th {
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+/*
+ * Deliberately small minimums. A filter row sets the table's minimum width, so
+ * a generous min-width here is what puts a horizontal scrollbar under a table
+ * that would otherwise fit.
+ */
+.input--sm,
+.select--sm {
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--text-sm);
+    border-radius: var(--radius-sm);
+    width: 100%;
+    min-width: 0;
+}
+
+/* --- The table itself ---------------------------------------------------- */
+/*
+ * The header stays while the body scrolls. It needs a background of its own,
+ * because a transparent sticky header shows the rows passing underneath it.
+ */
+.table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.table__filters th { top: 2.375rem; }
+
+.table .cell--end { text-align: right; }
+
+.table td.cell--end { font-variant-numeric: tabular-nums; }
+
+/* A row that is a link to its own detail: the whole row, not a word in it. */
+.table tbody tr.is-selectable { cursor: pointer; }
+
+.table tbody tr.is-current {
+    background: var(--color-primary-soft);
+    box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+.table tbody tr.is-current:hover { background: var(--indigo-100); }
+
+/*
+ * The identity cell. Its own width, rather than one inherited from the longest
+ * address in the list: a minimum so the column never collapses to nothing, and
+ * a maximum past which the text is clipped rather than wrapped. Both lines stay
+ * single lines, so every row in the table is the same height and the eye can
+ * run down the column.
+ */
+.row-link {
+    display: block;
+    min-width: 11rem;
+    max-width: 20rem;
+    color: inherit;
+    text-decoration: none;
+}
+
+.row-link > span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.row-link:hover .row-link__title { color: var(--color-primary-text); }
+
+.row-link__title { font-weight: 600; }
+
+
+
+/* The empty state inside a table, rather than an empty table with a caption. */
+.table-empty {
+    padding: var(--space-12) var(--space-6);
+    text-align: center;
+    color: var(--color-text-secondary);
+}
+
+.table-empty__title {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.table-empty__body {
+    margin: 0 auto;
+    max-width: 34rem;
+    font-size: var(--text-base);
+}
+
+/* --- Pager --------------------------------------------------------------- */
+.pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5);
+    border-top: 1px solid var(--color-border-subtle);
+}
+
+.pager__pages {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pager__step,
+.pager__page {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0 var(--space-2);
+    justify-content: center;
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    transition: background var(--duration-fast) var(--ease-out),
+                color var(--duration-fast) var(--ease-out);
+}
+
+.pager__step:hover,
+.pager__page:hover {
+    color: var(--color-text);
+    background: var(--color-surface-sunken);
+}
+
+.pager__page.is-current {
+    color: var(--color-text-inverse);
+    background: var(--color-primary);
+    font-weight: 600;
+}
+
+.pager__page.is-current:hover { background: var(--color-primary); }
+
+/* Kept in place rather than removed, so the row does not reflow at the ends. */
+.pager__step.is-disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.pager__step.is-disabled:hover { background: none; }
+
+.pager__gap {
+    padding: 0 var(--space-1);
+    color: var(--color-text-muted);
+}
+
+/* ===========================================================================
+   Master and detail
+   ---------------------------------------------------------------------------
+   A list beside a panel. The list keeps its own scroll and the panel sticks,
+   so choosing a row does not scroll the page away from the row you chose.
+   =========================================================================== */
+.master-detail {
+    display: grid;
+
+    /*
+     * The list gets roughly two thirds. The panel has a floor rather than a
+     * share, because below about 300px its grant form stops fitting on one
+     * line and the layout starts fighting itself; above the floor the list
+     * takes everything going, which is what keeps the table free of a
+     * horizontal scrollbar.
+     */
+    grid-template-columns: minmax(0, 1.9fr) minmax(19rem, 1fr);
+    gap: var(--space-6);
+    align-items: start;
+}
+
+/*
+ * Nothing selected, so the table takes the whole width and shows every column.
+ * The alternative, a permanent empty panel holding a third of the screen for
+ * one sentence, costs the table two columns in order to repeat something the
+ * page header already says.
+ */
+.master-detail--single { grid-template-columns: minmax(0, 1fr); }
+
+.master-detail__detail { position: sticky; top: calc(var(--topbar-height) + var(--space-6)); }
+
+/*
+ * The list is a container, so the table inside it responds to the space it was
+ * given rather than to the width of the window. That distinction is the whole
+ * point here: the same table is wide when nothing is selected and narrow beside
+ * an open panel, and a media query cannot tell those apart.
+ */
+.master-detail__list { container-type: inline-size; }
+
+@container (max-width: 46rem) {
+    .table .cell--secondary { display: none; }
+}
+
+/* Exported, never drawn. See TablePriority.Hidden for why such a column exists. */
+.table .cell--hidden { display: none; }
+
+@media (max-width: 1100px) {
+    .master-detail { grid-template-columns: minmax(0, 1fr); }
+    .master-detail__detail { position: static; }
+}
+
+/* The heading row of a detail panel: who or what, and the way out. */
+.detail__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.detail__identity {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.detail__name {
+    margin: 0;
+    font-size: var(--text-lg);
+    line-height: var(--leading-tight);
+    overflow-wrap: anywhere;
+}
+
+.detail__meta {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    overflow-wrap: anywhere;
+}
+
+/* A monogram, because this product has no avatars to show and no business asking for one. */
+.avatar {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: var(--radius-full);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--color-primary-text);
+    background: var(--color-primary-soft);
+    border: 1px solid var(--indigo-200);
+}
+
+.avatar--lg {
+    width: 3rem;
+    height: 3rem;
+    font-size: var(--text-md);
+}
+
+/* A labelled group inside a detail panel. */
+.detail__section {
+    padding-top: var(--space-5);
+    margin-top: var(--space-5);
+    border-top: 1px solid var(--color-border-subtle);
+}
+
+.detail__label {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.detail__grants {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+/* The prompt shown where a detail panel would be, before a row is chosen. */
+.detail__placeholder {
+    display: grid;
+    place-items: center;
+    gap: var(--space-3);
+    padding: var(--space-12) var(--space-6);
+    text-align: center;
+    color: var(--color-text-secondary);
+}
+
+.detail__placeholder svg {
+    width: 2rem;
+    height: 2rem;
+    fill: var(--color-border-strong);
+}
+
+/* ===========================================================================
    Masked secret value
    ---------------------------------------------------------------------------
    The value is never in the markup until it has been fetched deliberately.

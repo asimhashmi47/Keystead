@@ -49,34 +49,10 @@
     }
 
     <div class="card u-section">
-        <div class="card__header">
-            <h2>Secrets</h2>
-
-            <form class="u-row u-row--center" method="get">
-                <label class="visually-hidden" for="q">Search secret names</label>
-                <input class="input input--sm" id="q" name="q" type="search"
-                       placeholder="Search names" value="@Model.Search" />
-
-                <label class="visually-hidden" for="env">Environment</label>
-                <select class="select" id="env" name="env">
-                    <option value="">All environments</option>
-                    @foreach (var environment in Model.Environments)
-                    {
-                        <option value="@environment"
-                                selected="@(environment == Model.EnvironmentFilter)">
-                            @environment
-                        </option>
-                    }
-                </select>
-
-                @if (Model.ShowDeleted)
-                {
-                    <input type="hidden" name="deleted" value="true" />
-                }
-
-                <button class="btn btn--secondary btn--sm" type="submit">Filter</button>
-            </form>
-        </div>
+        @if (Model.Table is { } table)
+        {
+            <partial name="_TableToolbar" model="table.Chrome" />
+        }
 
         @if (Model.Secrets.Count == 0)
         {
@@ -101,27 +77,36 @@
                 </p>
             </div>
         }
-        else
+        else if (Model.Table is { } secrets)
         {
+            @if (secrets.IsEmpty)
+            {
+                <div class="table-empty">
+                    <p class="table-empty__title">Nothing matches that</p>
+                    <p class="table-empty__body">
+                        This vault holds @secrets.Chrome.TotalCount secrets. None of them match
+                        the current search.
+                    </p>
+                    <a class="btn btn--secondary btn--sm u-mt-4" href="@secrets.Chrome.ClearUrl">
+                        Clear the search
+                    </a>
+                </div>
+            }
+            else
+            {
             <div class="table-wrap">
                 <table class="table">
                     <caption class="visually-hidden">Secrets in @vault.Name</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col">Name</th>
-                            <th scope="col">Environment</th>
-                            <th scope="col">Versions</th>
-                            <th scope="col">Status</th>
-                            <th scope="col">Updated</th>
-                        </tr>
-                    </thead>
+
+                    <partial name="_TableHead" model="secrets.Chrome" />
+
                     <tbody>
-                        @foreach (var secret in Model.Secrets)
+                        @foreach (var secret in secrets.Rows)
                         {
-                            <tr>
+                            <tr data-row-url="/vaults/@vault.Slug/secrets/@secret.Id">
                                 <td>
-                                    <a href="/vaults/@vault.Slug/secrets/@secret.Id">
-                                        <strong>@secret.Name</strong>
+                                    <a class="row-link" href="/vaults/@vault.Slug/secrets/@secret.Id">
+                                        <span class="row-link__title">@secret.Name</span>
                                     </a>
                                     @if (secret.Tags.Count > 0)
                                     {
@@ -134,7 +119,7 @@
                                     }
                                 </td>
                                 <td><span class="badge badge--neutral">@secret.Environment</span></td>
-                                <td>
+                                <td class="cell--end">
                                     v@(secret.LatestVersion)
                                     <span class="field__hint">of @secret.VersionCount</span>
                                 </td>
@@ -162,7 +147,7 @@
                                         </span>
                                     }
                                 </td>
-                                <td>
+                                <td class="cell--end cell--secondary">
                                     <time datetime="@secret.UpdatedUtc.ToString("O")">
                                         @secret.UpdatedUtc.ToString("d MMM yyyy")
                                     </time>
@@ -172,6 +157,9 @@
                     </tbody>
                 </table>
             </div>
+
+            <partial name="_TablePager" model="secrets.Chrome" />
+            }
         }
 
         <div class="card__footer">

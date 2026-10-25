@@ -54,35 +54,10 @@ else if (Model.Entries is { } log)
     }
 
     <div class="card">
-        <div class="card__header">
-            <h2>@log.TotalCount entr@(log.TotalCount == 1 ? "y" : "ies")</h2>
-
-            <div class="u-row u-row--center">
-                <form class="u-row" method="get">
-                    <label class="visually-hidden" for="q">Search actor or resource</label>
-                    <input class="input" id="q" name="q" type="search"
-                           placeholder="Actor or resource" value="@Model.Search" />
-
-                    <label class="visually-hidden" for="outcome">Outcome</label>
-                    <select class="select" id="outcome" name="outcome">
-                        <option value="">Any outcome</option>
-                        @foreach (var outcome in Enum.GetValues<AuditOutcome>())
-                        {
-                            <option value="@outcome" selected="@(outcome == Model.OutcomeFilter)">
-                                @outcome
-                            </option>
-                        }
-                    </select>
-
-                    <button class="btn btn--secondary btn--sm" type="submit">Filter</button>
-                </form>
-
-                <a class="btn btn--ghost btn--sm"
-                   href="@Url.Page("/Audit", "Export", new { q = Model.Search, outcome = Model.OutcomeFilter, action = Model.ActionFilter })">
-                    Export CSV
-                </a>
-            </div>
-        </div>
+        @if (Model.Table is { } table)
+        {
+            <partial name="_TableToolbar" model="table.Chrome" />
+        }
 
         @if (log.Entries.Count == 0)
         {
@@ -94,47 +69,43 @@ else if (Model.Entries is { } log)
                 </p>
             </div>
         }
-        else
+        else if (Model.Table is { } entries)
         {
             <div class="table-wrap">
                 <table class="table">
                     <caption class="visually-hidden">Audit entries, newest first</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col">#</th>
-                            <th scope="col">When</th>
-                            <th scope="col">Who</th>
-                            <th scope="col">What</th>
-                            <th scope="col">Resource</th>
-                            <th scope="col">From</th>
-                        </tr>
-                    </thead>
+
+                    <partial name="_TableHead" model="entries.Chrome" />
+
                     <tbody>
-                        @foreach (var entry in log.Entries)
+                        @foreach (var entry in entries.Rows)
                         {
                             <tr>
-                                <td><span class="field__hint">@entry.Seq</span></td>
+                                <td class="cell--end"><span class="field__hint">@entry.Seq</span></td>
                                 <td>
                                     <time datetime="@entry.CreatedUtc.ToString("O")">
                                         @entry.CreatedUtc.ToString("d MMM, HH:mm:ss")
                                     </time>
                                 </td>
                                 <td>@entry.ActorLabel</td>
+                                <td>@entry.Action</td>
                                 <td>
                                     @if (entry.Outcome == AuditOutcome.Success)
                                     {
-                                        <span class="badge badge--success">@entry.Action</span>
+                                        <span class="badge badge--success">
+                                            <span class="badge__dot" aria-hidden="true"></span> Success
+                                        </span>
                                     }
                                     else if (entry.Outcome == AuditOutcome.Denied)
                                     {
-                                        <span class="badge badge--warning">@entry.Action</span>
+                                        <span class="badge badge--warning">Denied</span>
                                     }
                                     else
                                     {
-                                        <span class="badge badge--danger">@entry.Action</span>
+                                        <span class="badge badge--danger">@entry.Outcome</span>
                                     }
                                 </td>
-                                <td>
+                                <td class="cell--secondary">
                                     @if (!string.IsNullOrEmpty(entry.ResourceLabel))
                                     {
                                         <text>@entry.ResourceLabel</text>
@@ -144,12 +115,15 @@ else if (Model.Entries is { } log)
                                         <span class="field__hint">@entry.ResourceType</span>
                                     }
                                 </td>
-                                <td><code class="field__hint">@entry.IpAddress</code></td>
+                                <td class="cell--secondary"><code class="field__hint">@entry.IpAddress</code></td>
+                                <td class="cell--hidden">@entry.Detail</td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
+
+            <partial name="_TablePager" model="entries.Chrome" />
         }
     </div>
 }

@@ -1,0 +1,118 @@
+@model Keystead.Web.Tables.TableChrome
+@*
+    A table's header: one sortable column per header cell, and an optional row of per-column
+    filters underneath.
+
+    The sort is an anchor, not a button, so it is a real link: middle-clickable, shareable, and
+    working with scripting blocked. aria-sort tells a screen reader which column is ordered and
+    which way, which the arrow glyph alone does not.
+
+    The filter inputs sit in the header but belong to the toolbar's form through the form
+    attribute, because that form is outside the table.
+*@
+<thead>
+    <tr>
+        @foreach (var column in Model.Columns)
+        {
+            var aria = column.Sort switch
+            {
+                Keystead.Web.Tables.TableSortState.Ascending => "ascending",
+                Keystead.Web.Tables.TableSortState.Descending => "descending",
+                _ => column.Sortable ? "none" : null,
+            };
+
+            <th scope="col" class="@column.CellClass" aria-sort="@aria">
+                @if (column.Sortable)
+                {
+                    <a class="th-sort @(column.Sort != Keystead.Web.Tables.TableSortState.None ? "is-sorted" : null)"
+                       href="@column.SortUrl"
+                       title="@(column.Sort == Keystead.Web.Tables.TableSortState.Ascending ? $"Sort by {column.Header}, largest first" : $"Sort by {column.Header}, smallest first")">
+                        <span>@column.Header</span>
+
+                        @if (column.Sort == Keystead.Web.Tables.TableSortState.Ascending)
+                        {
+                            <svg class="th-sort__mark" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+                                <path d="M6 2.5 10 8H2z" />
+                            </svg>
+                        }
+                        else if (column.Sort == Keystead.Web.Tables.TableSortState.Descending)
+                        {
+                            <svg class="th-sort__mark" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+                                <path d="M6 9.5 2 4h8z" />
+                            </svg>
+                        }
+                        else
+                        {
+                            <svg class="th-sort__mark th-sort__mark--idle" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+                                <path d="M6 1.5 9 5H3zM6 10.5 3 7h6z" />
+                            </svg>
+                        }
+                    </a>
+                }
+                else
+                {
+                    @if (string.IsNullOrEmpty(column.Header))
+                    {
+                        <span class="visually-hidden">Actions</span>
+                    }
+                    else
+                    {
+                        <span>@column.Header</span>
+                    }
+                }
+
+                @if (!string.IsNullOrEmpty(column.Hint))
+                {
+                    <span class="visually-hidden">. @column.Hint</span>
+                }
+            </th>
+        }
+    </tr>
+
+    @if (Model.FiltersOpen)
+    {
+        <tr class="table__filters">
+            @foreach (var column in Model.Columns)
+            {
+                <th scope="col" class="@column.CellClass">
+                    @if (column.Searchable)
+                    {
+                        <label class="visually-hidden" for="@(Model.Id)-f-@column.Key">
+                            Filter by @column.Header
+                        </label>
+
+                        @if (column.Options is { Count: > 0 } options)
+                        {
+                            <select class="select select--sm"
+                                    id="@(Model.Id)-f-@column.Key"
+                                    name="@column.FieldName"
+                                    form="@Model.FormId"
+                                    data-table-submit>
+                                <option value="">Any</option>
+                                @foreach (var option in options)
+                                {
+                                    <option value="@option.Value"
+                                            selected="@string.Equals(option.Value, column.Term, StringComparison.OrdinalIgnoreCase)">
+                                        @option.Label
+                                    </option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <input class="input input--sm"
+                                   id="@(Model.Id)-f-@column.Key"
+                                   type="search"
+                                   name="@column.FieldName"
+                                   value="@column.Term"
+                                   form="@Model.FormId"
+                                   autocomplete="off"
+                                   spellcheck="false"
+                                   placeholder="@column.Header" />
+                        }
+                    }
+                </th>
+            }
+        </tr>
+    }
+</thead>

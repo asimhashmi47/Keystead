@@ -1,0 +1,138 @@
+@model Keystead.Web.Tables.TableChrome
+@*
+    The bar above a table: search, the filter-row toggle, page size, export, and a plain
+    statement of what is on screen.
+
+    This partial *is* the filter form. Every control in the header row belongs to it through
+    the HTML form attribute rather than by being inside it, because a form cannot wrap a table
+    whose rows contain their own forms. One form, one submit, no nesting.
+
+    It works with scripting blocked: Apply submits it. With the script, typing settles and
+    submits on its own, and Apply becomes a visible fallback rather than the only way through.
+*@
+<form class="tablebar" id="@Model.FormId" method="get" role="search"
+      aria-label="Search and filter @Model.Label" data-table-filter>
+
+    @* Everything the table does not own, carried so a search cannot drop it. *@
+    @foreach (var value in Model.Preserved)
+    {
+        @if (!string.IsNullOrEmpty(value.Value))
+        {
+            <input type="hidden" name="@value.Key" value="@value.Value" />
+        }
+    }
+
+    @* The sort survives a filter: changing what you are looking at should not reorder it. *@
+    @if (!string.IsNullOrEmpty(Model.Sort))
+    {
+        <input type="hidden" name="@Keystead.Web.Tables.TableChrome.SortFieldName" value="@Model.Sort" />
+        <input type="hidden" name="@Keystead.Web.Tables.TableChrome.DirectionFieldName" value="@Model.Direction" />
+    }
+
+    @if (Model.FiltersOpen)
+    {
+        <input type="hidden" name="@Keystead.Web.Tables.TableChrome.FiltersFieldName" value="1" />
+    }
+
+    <div class="tablebar__row">
+        <div class="tablebar__search">
+            <svg class="tablebar__search-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                <path d="M8.5 3a5.5 5.5 0 1 0 3.37 9.84l3.4 3.4a1 1 0 0 0 1.42-1.42l-3.4-3.4A5.5 5.5 0 0 0 8.5 3Zm0 2a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z" />
+            </svg>
+
+            <label class="visually-hidden" for="@(Model.Id)-q">Search @Model.Label</label>
+            <input class="tablebar__search-input"
+                   id="@(Model.Id)-q"
+                   type="search"
+                   name="@Keystead.Web.Tables.TableChrome.SearchFieldName"
+                   value="@Model.Search"
+                   autocomplete="off"
+                   spellcheck="false"
+                   placeholder="Search @Model.Label" />
+        </div>
+
+        <div class="tablebar__actions">
+            <button class="btn btn--secondary btn--sm" type="submit">Apply</button>
+
+            <a class="btn btn--ghost btn--sm @(Model.FiltersOpen ? "is-active" : null)"
+               href="@Model.FiltersUrl"
+               aria-pressed="@(Model.FiltersOpen ? "true" : "false")">
+                <svg class="btn__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                    <path d="M3 5h14a1 1 0 0 1 0 2H3a1 1 0 0 1 0-2Zm3 4h8a1 1 0 0 1 0 2H6a1 1 0 0 1 0-2Zm3 4h2a1 1 0 0 1 0 2H9a1 1 0 0 1 0-2Z" />
+                </svg>
+                Column filters
+            </a>
+
+            <div class="tablebar__size">
+                <label class="visually-hidden" for="@(Model.Id)-size">Rows per page</label>
+                <select class="select select--sm" id="@(Model.Id)-size"
+                        name="@Keystead.Web.Tables.TableChrome.SizeFieldName" data-table-submit>
+                    @foreach (var size in Keystead.Web.Tables.TableChrome.PageSizes)
+                    {
+                        <option value="@size" selected="@(size == Model.PageSize)">@size per page</option>
+                    }
+                </select>
+            </div>
+
+            @if (Model.ExportHandler is { } handler)
+            {
+                <div class="tablebar__export">
+                    <a class="btn btn--ghost btn--sm" href="@Model.ExportUrl(handler, "xlsx")"
+                       aria-label="Download these @Model.Label as an Excel workbook">
+                        <svg class="btn__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                            <path d="M10 2a1 1 0 0 1 1 1v7.59l2.3-2.3a1 1 0 0 1 1.4 1.42l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 1.4-1.42l2.3 2.3V3a1 1 0 0 1 1-1Zm-6 13h12a1 1 0 0 1 0 2H4a1 1 0 0 1 0-2Z" />
+                        </svg>
+                        Excel
+                    </a>
+                    <a class="tablebar__alt" href="@Model.ExportUrl(handler, "csv")">CSV</a>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (Model.HasFilter)
+    {
+        <div class="tablebar__chips">
+            @if (!string.IsNullOrEmpty(Model.Search))
+            {
+                <a class="chip" href="@Model.WithoutSearch">
+                    <span class="chip__label">Search</span>
+                    <span class="chip__value">@Model.Search</span>
+                    <span class="chip__clear" aria-hidden="true">&times;</span>
+                    <span class="visually-hidden">Remove this search</span>
+                </a>
+            }
+
+            @foreach (var column in Model.Columns)
+            {
+                @if (!string.IsNullOrEmpty(column.Term))
+                {
+                    <a class="chip" href="@Model.WithoutColumn(column.Key)">
+                        <span class="chip__label">@column.Header</span>
+                        <span class="chip__value">@column.Term</span>
+                        <span class="chip__clear" aria-hidden="true">&times;</span>
+                        <span class="visually-hidden">Remove this filter</span>
+                    </a>
+                }
+            }
+
+            <a class="tablebar__clear" href="@Model.ClearUrl">Clear all</a>
+        </div>
+    }
+
+    <p class="tablebar__count" role="status">
+        @if (Model.FilteredCount == 0)
+        {
+            <text>No @Model.Label match</text>
+        }
+        else
+        {
+            <text>Showing @Model.FirstRow&ndash;@Model.LastRow of @Model.FilteredCount @Model.Label</text>
+        }
+
+        @if (Model.IsFiltered)
+        {
+            <span class="tablebar__total">filtered from @Model.TotalCount</span>
+        }
+    </p>
+</form>

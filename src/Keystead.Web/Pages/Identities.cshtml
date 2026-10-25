@@ -107,9 +107,10 @@ KEYSTEAD_CLIENT_SECRET=@secret</code></pre>
 }
 
 <div class="card u-section">
-    <div class="card__header">
-        <h2>@Model.Items.Count identit@(Model.Items.Count == 1 ? "y" : "ies")</h2>
-    </div>
+    @if (Model.Table is { } table && Model.Items.Count > 0)
+    {
+        <partial name="_TableToolbar" model="table.Chrome" />
+    }
 
     @if (Model.Items.Count == 0)
     {
@@ -135,21 +136,31 @@ KEYSTEAD_CLIENT_SECRET=@secret</code></pre>
     }
     else
     {
+        var identities = Model.Table!;
+
+        @if (identities.IsEmpty)
+        {
+            <div class="table-empty">
+                <p class="table-empty__title">Nothing matches that</p>
+                <p class="table-empty__body">
+                    There are @identities.Chrome.TotalCount identities here. None of them match
+                    the current search.
+                </p>
+                <a class="btn btn--secondary btn--sm u-mt-4" href="@identities.Chrome.ClearUrl">
+                    Clear the search
+                </a>
+            </div>
+        }
+        else
+        {
         <div class="table-wrap">
             <table class="table">
                 <caption class="visually-hidden">Service identities in this workspace</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Name</th>
-                        <th scope="col">Client ID</th>
-                        <th scope="col">Can reach</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Last used</th>
-                        <th scope="col"><span class="visually-hidden">Actions</span></th>
-                    </tr>
-                </thead>
+
+                <partial name="_TableHead" model="identities.Chrome" />
+
                 <tbody>
-                    @foreach (var identity in Model.Items)
+                    @foreach (var identity in identities.Rows)
                     {
                         <tr>
                             <td>
@@ -161,7 +172,7 @@ KEYSTEAD_CLIENT_SECRET=@secret</code></pre>
                                     </div>
                                 }
                             </td>
-                            <td><code class="field__hint">@identity.ClientId</code></td>
+                            <td class="cell--secondary"><code class="field__hint">@identity.ClientId</code></td>
                             <td>
                                 @if (identity.Scopes.Count == 0)
                                 {
@@ -201,7 +212,7 @@ KEYSTEAD_CLIENT_SECRET=@secret</code></pre>
                                     </span>
                                 }
                             </td>
-                            <td>
+                            <td class="cell--end cell--secondary">
                                 @if (identity.LastUsedUtc is { } used)
                                 {
                                     <time datetime="@used.ToString("O")">
@@ -213,7 +224,10 @@ KEYSTEAD_CLIENT_SECRET=@secret</code></pre>
                                     <span class="field__hint">Never</span>
                                 }
                             </td>
-                            <td class="u-end">
+                            <td class="cell--hidden">
+                                @(identity.IpAllowlist.Count == 0 ? "Anywhere" : string.Join(", ", identity.IpAllowlist))
+                            </td>
+                            <td class="cell--end">
                                 @if (Model.CanManage && identity.IsActive)
                                 {
                                     <div class="u-row u-row--end">
@@ -239,6 +253,9 @@ KEYSTEAD_CLIENT_SECRET=@secret</code></pre>
                 </tbody>
             </table>
         </div>
+
+        <partial name="_TablePager" model="identities.Chrome" />
+        }
     }
 </div>
 
